@@ -1,8 +1,0 @@
-Funnel metadata: claude-tour
-Experiment: EXP-106:tour_vs_classic
-01_default — 50% open
-02_tour — 50% open
-Products
-SocialSensor 7d trial $1 → $49.99/4w
-Virality Predictor $24.99/month
-Fake Followers Checker $19.99/year

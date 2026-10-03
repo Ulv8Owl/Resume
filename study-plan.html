@@ -95,15 +95,17 @@
   </section>
 
   <section>
-    <h2><span class="num">4</span>Автотест на Espresso для Литрес</h2>
+    <h2><span class="num">4</span>Автотест на Appium для Литрес (готовое приложение)</h2>
     <a class="link" href="https://youtu.be/8YnU8xDwKRA?t=474" target="_blank" rel="noopener">youtu.be/8YnU8xDwKRA?t=474</a>
     <ul>
-      <li><label><input type="checkbox"><span>Понять, что такое Espresso<span class="hint">Белый ящик: тесты живут в проекте приложения (androidTest). Для чужого APK обычно используют UI Automator / Appium</span></span></label></li>
-      <li><label><input type="checkbox"><span>Подготовить проект в Android Studio<span class="hint">Зависимости espresso-core, androidx.test:runner, rules; testInstrumentationRunner в build.gradle</span></span></label></li>
-      <li><label><input type="checkbox"><span>Найти локаторы элементов<span class="hint">Layout Inspector / UI Automator Viewer — resource-id, text, content-description</span></span></label></li>
-      <li><label><input type="checkbox"><span>Написать тест шаг за шагом<span class="hint">ActivityScenarioRule → onView(withId(...)) → perform(click(), typeText()) → check(matches(isDisplayed()))</span></span></label></li>
-      <li><label><input type="checkbox"><span>Сценарий: поиск книги в Литрес<span class="hint">Открыть приложение → поиск → ввести название → проверить, что результат отображается</span></span></label></li>
-      <li><label><input type="checkbox"><span>Запустить тест в Android Studio на эмуляторе<span class="hint">Зелёная кнопка ▶ у теста или <code>./gradlew connectedAndroidTest</code>; разобрать отчёт</span></span></label></li>
+      <li><label><input type="checkbox"><span>Понять, что такое Appium<span class="hint">Чёрный ящик: тестирует готовое приложение (APK / из магазина) без исходников. Один подход для Android и iOS — поэтому чаще встречается в вакансиях</span></span></label></li>
+      <li><label><input type="checkbox"><span>Установить окружение<span class="hint">Node.js → <code>npm i -g appium</code> → <code>appium driver install uiautomator2</code>; Android SDK из Android Studio, переменная ANDROID_HOME; <code>appium-doctor</code> для проверки</span></span></label></li>
+      <li><label><input type="checkbox"><span>Подготовить эмулятор с Литрес<span class="hint">AVD с Google Play в Android Studio → установить Литрес; <code>adb shell dumpsys window | grep mCurrentFocus</code> — узнать appPackage и appActivity</span></span></label></li>
+      <li><label><input type="checkbox"><span>Найти локаторы в Appium Inspector<span class="hint">Capabilities: platformName, automationName=UiAutomator2, appPackage, appActivity, noReset. Локаторы: id, accessibility id, xpath (в крайнем случае)</span></span></label></li>
+      <li><label><input type="checkbox"><span>Создать проект теста<span class="hint">Java + Maven/Gradle в IntelliJ / Android Studio: зависимости java-client (Appium) и JUnit 5 (или Python + pytest)</span></span></label></li>
+      <li><label><input type="checkbox"><span>Написать тест шаг за шагом<span class="hint">@BeforeEach — создать AndroidDriver с capabilities → findElement(AppiumBy.id(...)).click() / sendKeys() → явные ожидания (WebDriverWait) → assert → @AfterEach driver.quit()</span></span></label></li>
+      <li><label><input type="checkbox"><span>Сценарий: поиск книги в Литрес<span class="hint">Запустить приложение → открыть поиск → ввести название → проверить, что книга есть в результатах</span></span></label></li>
+      <li><label><input type="checkbox"><span>Запустить и разобрать результат<span class="hint">Запустить сервер <code>appium</code> → запустить тест → смотреть лог сервера и logcat при падении; дальше — Page Object и Allure-отчёт</span></span></label></li>
     </ul>
   </section>
 
@@ -129,7 +131,7 @@
   </section>
 </main>
 <script>
-  const KEY = 'qa-study-plan-v1';
+  const KEY = 'qa-study-plan-v2';
   const boxes = [...document.querySelectorAll('input[type=checkbox]')];
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) {}

@@ -1,0 +1,9 @@
+dist/
+build/
+*.spec
+__pycache__/
+chrome_profile/
+vacancies_links.txt
+applied_links.txt
+keywords.txt
+cover_letter.txt

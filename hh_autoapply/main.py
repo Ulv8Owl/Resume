@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import random
 import json
@@ -16,10 +17,18 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.os_manager import ChromeType
 
 # ==========================================================
 # ⚙️ КОНФИГУРАЦИЯ
 # ==========================================================
+# Служебные файлы лежат рядом с программой (рядом с бинарником после сборки)
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+os.chdir(BASE_DIR)
+
 PROFILE_DIR = "chrome_profile"
 LINKS_FILE = "vacancies_links.txt"
 APPLIED_FILE = "applied_links.txt"
@@ -35,6 +44,7 @@ ERROR_LIMIT = 3
 # Глобальные переменные для управления потоками
 is_running = False
 log_queue = queue.Queue()
+ui_queue = queue.Queue()  # события из рабочих потоков -> главный поток Tk
 
 
 # ==========================================================
@@ -98,7 +108,29 @@ def get_driver():
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
     options.add_argument("--disable-blink-features=AutomationControlled")
-    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+
+    # Linux: Google Chrome или Chromium из репозитория Debian
+    chrome_type = ChromeType.GOOGLE
+    if not (shutil.which("google-chrome") or shutil.which("google-chrome-stable")):
+        chromium = shutil.which("chromium") or shutil.which("chromium-browser")
+        if chromium:
+            options.binary_location = chromium
+            chrome_type = ChromeType.CHROMIUM
+
+    # 1) системный драйвер (apt install chromium-driver)
+    system_driver = shutil.which("chromedriver")
+    if system_driver:
+        try:
+            return webdriver.Chrome(service=Service(system_driver), options=options)
+        except WebDriverException as e:
+            log_message(f"⚠️ Системный chromedriver не подошёл: {e.msg}")
+    # 2) webdriver-manager
+    try:
+        return webdriver.Chrome(service=Service(ChromeDriverManager(chrome_type=chrome_type).install()), options=options)
+    except Exception as e:
+        log_message(f"⚠️ webdriver-manager: {e}. Пробуем Selenium Manager...")
+    # 3) встроенный Selenium Manager
+    return webdriver.Chrome(options=options)
 
 
 def check_auth(driver):
@@ -148,7 +180,7 @@ def task_authorize(ui_callback):
 def task_reset_auth(ui_callback):
     global is_running
     if is_running:
-        messagebox.showwarning("Внимание", "Дождитесь завершения текущей операции.")
+        log_message("⚠️ Дождитесь завершения текущей операции.")
         return
 
     if os.path.exists(PROFILE_DIR):
@@ -476,6 +508,12 @@ class AppUI:
                 self.text_log.config(state=tk.DISABLED)
         except queue.Empty:
             pass
+        try:
+            while True:
+                event, data = ui_queue.get_nowait()
+                self.handle_callback(event, data)
+        except queue.Empty:
+            pass
         self.root.after(100, self.poll_logs)
 
     def poll_stats(self):
@@ -529,12 +567,16 @@ class AppUI:
             self.btn_reset.config(state=tk.NORMAL)
             self.update_stats()
 
+    def post_callback(self, event, data=None):
+        # Tk нельзя трогать из рабочих потоков — передаём событие в главный поток
+        ui_queue.put((event, data))
+
     # --- Обработчики кнопок ---
     def on_auth(self):
-        threading.Thread(target=task_authorize, args=(self.handle_callback,), daemon=True).start()
+        threading.Thread(target=task_authorize, args=(self.post_callback,), daemon=True).start()
 
     def on_reset_auth(self):
-        threading.Thread(target=task_reset_auth, args=(self.handle_callback,), daemon=True).start()
+        threading.Thread(target=task_reset_auth, args=(self.post_callback,), daemon=True).start()
 
     def add_keyword(self):
         kw = self.entry_kw.get().strip()
@@ -556,13 +598,13 @@ class AppUI:
             return
 
         country_mode = self.country_var.get()
-        threading.Thread(target=task_search, args=(kws, country_mode, self.handle_callback), daemon=True).start()
+        threading.Thread(target=task_search, args=(kws, country_mode, self.post_callback), daemon=True).start()
 
     def on_apply(self):
         # Получаем актуальный текст письма, сохраняем его и передаем в поток
         cover_letter_text = self.text_cover_letter.get("1.0", tk.END).strip()
         save_cover_letter(cover_letter_text)
-        threading.Thread(target=task_apply, args=(cover_letter_text, self.handle_callback), daemon=True).start()
+        threading.Thread(target=task_apply, args=(cover_letter_text, self.post_callback), daemon=True).start()
 
 
 # ==========================================================

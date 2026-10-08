@@ -41,7 +41,7 @@ python3 -m venv .venv
 sudo apt install python3 python3-venv python3-tk binutils
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt pyinstaller
-.venv/bin/pyinstaller --onefile --clean --name HHAutoApply main.py
+.venv/bin/pyinstaller --onefile --clean --collect-submodules selenium --collect-data selenium --name HHAutoApply main.py
 ```
 Или в Docker: `./build.sh` (результат — `dist/HHAutoApply`).
 
@@ -52,4 +52,5 @@ python3 -m venv .venv
 | `libxcb.so.1: cannot open shared object file` | запуск без графической среды; на сервере: `sudo apt install xorg` или запускай на десктопе |
 | `cannot find Chrome binary` | не установлен браузер — `sudo apt install chromium chromium-driver` |
 | `session not created: This version of ChromeDriver only supports...` | версии Chromium и драйвера разошлись — `sudo apt update && sudo apt install --only-upgrade chromium chromium-driver` |
+| `No module named 'selenium.webdriver.chrome.webdriver'` | старая сборка — скачай новый бинарник или пересобери с флагами `--collect-submodules selenium --collect-data selenium` |
 | `user data directory is already in use` | закрой окна браузера, открытые программой |

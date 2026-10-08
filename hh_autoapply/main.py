@@ -11,7 +11,8 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 from datetime import datetime
 
-from selenium import webdriver
+# Явный импорт: selenium грузит webdriver.Chrome лениво, и PyInstaller его не видит
+from selenium.webdriver.chrome.webdriver import WebDriver as ChromeWebDriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -54,7 +55,7 @@ def log_message(msg):
     timestamp = datetime.now().strftime("%H:%M:%S")
     formatted = f"[{timestamp}] {msg}"
     log_queue.put(formatted)
-    print(formatted)  # Дублируем в консоль для отладки
+    print(formatted, flush=True)  # Дублируем в консоль для отладки
 
 
 def load_lines(path):
@@ -121,16 +122,16 @@ def get_driver():
     system_driver = shutil.which("chromedriver")
     if system_driver:
         try:
-            return webdriver.Chrome(service=Service(system_driver), options=options)
+            return ChromeWebDriver(service=Service(system_driver), options=options)
         except WebDriverException as e:
             log_message(f"⚠️ Системный chromedriver не подошёл: {e.msg}")
     # 2) webdriver-manager
     try:
-        return webdriver.Chrome(service=Service(ChromeDriverManager(chrome_type=chrome_type).install()), options=options)
+        return ChromeWebDriver(service=Service(ChromeDriverManager(chrome_type=chrome_type).install()), options=options)
     except Exception as e:
         log_message(f"⚠️ webdriver-manager: {e}. Пробуем Selenium Manager...")
     # 3) встроенный Selenium Manager
-    return webdriver.Chrome(options=options)
+    return ChromeWebDriver(options=options)
 
 
 def check_auth(driver):

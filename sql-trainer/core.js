@@ -15,9 +15,9 @@
     key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4a3RubGZkeGZjdHN3b3V3bnhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0ODE1MzUsImV4cCI6MjEwMDA1NzUzNX0.zJ9JBiH0L81FeyvmqEPKEJvnQ4qpNZi3PTlpHPw7rlo',
   };
   const CLOUD_ERRORS = {
-    name_taken: 'Маг с таким именем уже есть. Войди или выбери другое имя.',
-    bad_credentials: 'Неверное имя или пароль.',
-    bad_name: 'Имя: от 2 до 32 символов.',
+    name_taken: 'Этот никнейм уже занят. Выбери другой или войди, если это ты.',
+    bad_credentials: 'Неверный никнейм или пароль.',
+    bad_name: 'Никнейм: от 2 до 32 символов — буквы, цифры, пробел, «-» и «_».',
     bad_password: 'Пароль: не короче 6 символов.',
     bad_session: 'Сессия истекла. Войди заново.',
     state_too_large: 'Прогресс слишком большой для сохранения.',
@@ -74,18 +74,20 @@
       const raw = localStorage.getItem(LOCAL_KEY);
       if (raw) {
         const d = JSON.parse(raw);
-        return { state: Object.assign(freshState(), d.state || {}), account: d.account || null };
+        return { state: Object.assign(freshState(), d.state || {}), account: d.account || null, lastName: d.lastName || '', guest: !!d.guest };
       }
     } catch (e) { /* хранилище недоступно */ }
     const state = freshState();
     migrateLegacy(state);
-    return { state, account: null };
+    return { state, account: null, lastName: '', guest: false };
   }
 
   const boot = loadLocal();
   const Core = {
     state: boot.state,
     account: boot.account, // { name, token }
+    lastName: boot.lastName, // имя последнего вошедшего мага — подставляется в форму входа
+    guest: boot.guest, // игрок сам выбрал игру без аккаунта
     sync: boot.account ? 'pending' : 'guest', // guest | pending | saving | saved | offline | error
     syncNote: '',
     modes: {},
@@ -96,7 +98,9 @@
   window.Core = Core;
 
   function writeLocal() {
-    try { localStorage.setItem(LOCAL_KEY, JSON.stringify({ state: Core.state, account: Core.account })); } catch (e) { /* без хранилища тоже играем */ }
+    try {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify({ state: Core.state, account: Core.account, lastName: Core.lastName, guest: Core.guest }));
+    } catch (e) { /* без хранилища тоже играем */ }
   }
 
   let cloudTimer = null;
@@ -116,9 +120,17 @@
       await rpc('qa_save', { p_token: Core.account.token, p_state: Core.state });
       setSync('saved');
     } catch (e) {
-      if (e.code === 'bad_session') { Core.account = null; writeLocal(); setSync('guest', e.message); }
+      if (e.code === 'bad_session') sessionExpired(e.message);
       else setSync(e.offline ? 'offline' : 'error', e.message);
     }
+  }
+
+  // Сессия истекла: прогресс остаётся в браузере, а игрока просят войти заново.
+  function sessionExpired(msg) {
+    Core.account = null;
+    writeLocal();
+    setSync('guest', msg);
+    showGate('login', 'Сессия истекла. Войди заново — прогресс из этого браузера сохранится в облаке.');
   }
 
   function setSync(s, note) {
@@ -137,7 +149,7 @@
       writeLocal();
       setSync('saved');
     } catch (e) {
-      if (e.code === 'bad_session') { Core.account = null; writeLocal(); setSync('guest', e.message); }
+      if (e.code === 'bad_session') sessionExpired(e.message);
       else setSync(e.offline ? 'offline' : 'error', e.message);
     }
     Core.refresh();
@@ -157,9 +169,12 @@
   Core.login = async function login(name, password, create) {
     const d = await rpc(create ? 'qa_register' : 'qa_login', { p_name: name, p_password: password });
     Core.account = { name: d.name, token: d.token };
+    Core.lastName = d.name;
+    Core.guest = false;
     let how;
     if (create) {
       how = 'Маг создан. Текущий прогресс сохранён в облаке.';
+      Core.state.updatedAt = Date.now();
       writeLocal();
       await pushCloud();
     } else {
@@ -177,10 +192,12 @@
     clearTimeout(cloudTimer);
     if (acc) { try { await rpc('qa_logout', { p_token: acc.token }); } catch (e) { /* выходим в любом случае */ } }
     Core.account = null;
+    Core.guest = false;
     Core.state = freshState();
     writeLocal();
     setSync('guest');
     Core.refresh();
+    showGate('login');
   };
 
   Core.resetAll = function resetAll() {
@@ -359,8 +376,7 @@
     if (Core.account) {
       box.innerHTML = `
         <p class="eyebrow">Аккаунт</p>
-        <p class="acc-line">Ты вошёл как <b>${esc(Core.account.name)}</b>. Прогресс сохраняется в облаке Supabase.</p>
-        <p class="acc-status" id="acc-status"></p>
+        <p class="acc-line">Ты вошёл как <b>${esc(Core.account.name)}</b>. Прогресс сохраняется в облаке, а при следующем заходе игра войдёт сама.</p>
         <div class="acc-actions">
           <button class="btn" id="logout-btn" type="button">Выйти</button>
           <button class="ghost-btn" id="reset-all-btn" type="button">Сбросить весь прогресс</button>
@@ -369,35 +385,12 @@
     } else {
       box.innerHTML = `
         <p class="eyebrow">Сохранение в облаке</p>
-        <p class="acc-line">Сейчас ты играешь как гость, и прогресс хранится только в этом браузере. Войди или создай мага, чтобы продолжать с любого устройства.</p>
-        <form class="acc-form" id="acc-form" autocomplete="on">
-          <label>Имя мага<input id="acc-name" name="username" autocomplete="username" minlength="2" maxlength="32" required></label>
-          <label>Пароль<input id="acc-pass" name="password" type="password" autocomplete="current-password" minlength="6" required></label>
-          <div class="acc-actions">
-            <button class="btn attack" type="submit" id="login-btn">Войти</button>
-            <button class="btn" type="button" id="register-btn">Создать мага</button>
-          </div>
-        </form>
-        <p class="acc-status" id="acc-status"></p>
-        <div class="acc-actions"><button class="ghost-btn" id="reset-all-btn" type="button">Сбросить весь прогресс</button></div>`;
-      const go = async (create) => {
-        const name = $('acc-name').value.trim();
-        const pass = $('acc-pass').value;
-        const st = $('acc-status');
-        if (name.length < 2 || pass.length < 6) { st.textContent = 'Имя от 2 символов, пароль от 6 символов.'; st.className = 'acc-status bad'; return; }
-        st.textContent = create ? 'Создаю мага…' : 'Вхожу…';
-        st.className = 'acc-status';
-        try {
-          const how = await Core.login(name, pass, create);
-          const s2 = $('acc-status');
-          if (s2) { s2.textContent = how; s2.className = 'acc-status ok'; }
-        } catch (e) {
-          st.textContent = e.message;
-          st.className = 'acc-status bad';
-        }
-      };
-      $('acc-form').addEventListener('submit', (e) => { e.preventDefault(); go(false); });
-      $('register-btn').addEventListener('click', () => { if ($('acc-form').reportValidity()) go(true); });
+        <p class="acc-line">Ты играешь без аккаунта: прогресс хранится только в этом браузере. Создай мага, чтобы продолжать с любого устройства.</p>
+        <div class="acc-actions">
+          <button class="btn attack" id="open-gate-btn" type="button">Войти или создать мага</button>
+          <button class="ghost-btn" id="reset-all-btn" type="button">Сбросить весь прогресс</button>
+        </div>`;
+      $('open-gate-btn').addEventListener('click', () => showGate(Core.lastName ? 'login' : 'register'));
     }
     const reset = $('reset-all-btn');
     reset.addEventListener('click', () => {
@@ -411,11 +404,116 @@
     });
   }
 
+  // ---------- экран входа и регистрации ----------
+
+  const NAME_RE = /^[A-Za-zА-Яа-яЁё0-9_\- ]{2,32}$/; // те же правила, что в qa_register
+  let gateTab = 'register';
+  let nameCheck = null;
+
+  function showGate(tab, note) {
+    gateTab = tab || gateTab;
+    const g = $('auth-gate');
+    g.hidden = false;
+    document.body.classList.add('gated');
+    renderGate(note);
+  }
+  function hideGate() {
+    $('auth-gate').hidden = true;
+    document.body.classList.remove('gated');
+  }
+  Core.showGate = showGate;
+
+  function renderGate(note) {
+    const g = $('auth-gate');
+    const reg = gateTab === 'register';
+    g.innerHTML = `
+      <div class="gate-card" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+        <img class="gate-avatar" src="${Core.avatar(P.RANKS[0])}" alt="" width="120" height="120">
+        <h2 class="gate-title" id="gate-title">Академия QA</h2>
+        <p class="gate-sub">Тренажёр к собеседованию тестировщика. Путь от Ученика до Архимага.</p>
+        <div class="gate-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected="${!reg}" class="${reg ? '' : 'on'}" data-tab="login">Вход</button>
+          <button type="button" role="tab" aria-selected="${reg}" class="${reg ? 'on' : ''}" data-tab="register">Регистрация</button>
+        </div>
+        <form class="gate-form" id="gate-form" novalidate>
+          <label>Никнейм
+            <input id="gate-name" name="username" autocomplete="username" maxlength="32" required value="${esc(reg ? '' : Core.lastName || '')}" placeholder="${reg ? 'Придумай уникальное имя мага' : 'Твой никнейм'}">
+          </label>
+          ${reg ? '<p class="gate-hint" id="gate-name-hint">От 2 до 32 символов: буквы, цифры, пробел, «-» и «_». Регистр не важен.</p>' : ''}
+          <label>Пароль
+            <input id="gate-pass" name="password" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" minlength="6" required placeholder="${reg ? 'Не короче 6 символов' : ''}">
+          </label>
+          ${reg ? '<label>Повтори пароль<input id="gate-pass2" type="password" autocomplete="new-password" minlength="6" required></label>' : ''}
+          <p class="gate-status" id="gate-status" aria-live="polite">${note ? esc(note) : ''}</p>
+          <button class="btn attack gate-submit" type="submit">${reg ? 'Создать мага' : 'Войти'}</button>
+        </form>
+        <p class="gate-foot">${reg ? 'Без почты и подтверждений: только никнейм и пароль.' : 'Нет аккаунта? Открой вкладку «Регистрация».'}</p>
+        <button class="gate-guest" type="button" id="gate-guest">Играть без аккаунта — прогресс останется только в этом браузере</button>
+      </div>`;
+    g.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { gateTab = b.dataset.tab; renderGate(); }));
+    $('gate-guest').addEventListener('click', () => {
+      Core.guest = true;
+      writeLocal();
+      hideGate();
+      Core.refresh();
+    });
+    const nameInput = $('gate-name');
+    if (reg) nameInput.addEventListener('input', () => checkName(nameInput.value));
+    $('gate-form').addEventListener('submit', (e) => { e.preventDefault(); submitGate(reg); });
+    (nameInput.value ? $('gate-pass') : nameInput).focus();
+  }
+
+  // Живая проверка, свободен ли никнейм. Окончательно уникальность всё равно проверяет база при регистрации.
+  function checkName(raw) {
+    const hint = $('gate-name-hint');
+    const name = raw.trim();
+    clearTimeout(nameCheck);
+    if (!hint) return;
+    if (!name) { hint.textContent = 'От 2 до 32 символов: буквы, цифры, пробел, «-» и «_». Регистр не важен.'; hint.className = 'gate-hint'; return; }
+    if (!NAME_RE.test(name)) { hint.textContent = 'Никнейм: от 2 до 32 символов — буквы, цифры, пробел, «-» и «_».'; hint.className = 'gate-hint bad'; return; }
+    hint.textContent = 'Проверяю, свободен ли никнейм…';
+    hint.className = 'gate-hint';
+    nameCheck = setTimeout(async () => {
+      try {
+        const free = await rpc('qa_name_available', { p_name: name });
+        if ($('gate-name') && $('gate-name').value.trim() !== name) return;
+        hint.textContent = free ? `✓ «${name}» свободен` : `✗ «${name}» уже занят — выбери другой`;
+        hint.className = 'gate-hint ' + (free ? 'ok' : 'bad');
+      } catch (e) {
+        hint.textContent = e.offline ? 'Не удалось проверить: нет связи с облаком.' : 'Свободен ли никнейм, проверим при регистрации.';
+        hint.className = 'gate-hint';
+      }
+    }, 400);
+  }
+
+  async function submitGate(reg) {
+    const name = $('gate-name').value.trim();
+    const pass = $('gate-pass').value;
+    const st = $('gate-status');
+    const bad = (m) => { st.textContent = m; st.className = 'gate-status bad'; };
+    if (!NAME_RE.test(name)) return bad('Никнейм: от 2 до 32 символов — буквы, цифры, пробел, «-» и «_».');
+    if (pass.length < 6) return bad('Пароль должен быть не короче 6 символов.');
+    if (reg && pass !== $('gate-pass2').value) return bad('Пароли не совпадают.');
+    const btn = document.querySelector('.gate-submit');
+    btn.disabled = true;
+    st.textContent = reg ? 'Создаю мага…' : 'Вхожу…';
+    st.className = 'gate-status';
+    try {
+      await Core.login(name, pass, reg);
+      hideGate();
+      Core.go('home');
+    } catch (e) {
+      btn.disabled = false;
+      bad(e.message);
+    }
+  }
+
   // ---------- запуск ----------
 
   Core.start = function start() {
     document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => Core.go(b.dataset.go)));
     Core.go('home');
-    if (Core.account) pullCloud();
+    if (Core.account) pullCloud(); // уже заходил: входим сами по сохранённой сессии
+    else if (!Core.guest) showGate(Core.lastName ? 'login' : 'register');
   };
 })();

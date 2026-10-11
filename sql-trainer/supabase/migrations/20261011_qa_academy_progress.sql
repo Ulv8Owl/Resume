@@ -156,3 +156,54 @@ revoke all on function public.qa_register(text, text), public.qa_login(text, tex
   public.qa_save(text, jsonb), public.qa_logout(text) from public;
 grant execute on function public.qa_register(text, text), public.qa_login(text, text), public.qa_load(text),
   public.qa_save(text, jsonb), public.qa_logout(text) to anon, authenticated;
+
+-- ---------- Правила никнейма и проверка, свободен ли он ----------
+create or replace function public.qa_valid_name(p_name text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select p_name is not null and btrim(p_name) ~ '^[A-Za-zА-Яа-яЁё0-9_ -]{2,32}$';
+$$;
+
+create or replace function public.qa_name_available(p_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public.qa_valid_name(p_name)
+     and not exists (select 1 from public.qa_players where name_key = lower(btrim(p_name)));
+$$;
+
+create or replace function public.qa_register(p_name text, p_password text)
+returns json
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+begin
+  if not public.qa_valid_name(p_name) then
+    raise exception 'bad_name';
+  end if;
+  if p_password is null or char_length(p_password) < 6 or char_length(p_password) > 128 then
+    raise exception 'bad_password';
+  end if;
+  if exists (select 1 from public.qa_players where name_key = lower(btrim(p_name))) then
+    raise exception 'name_taken';
+  end if;
+  insert into public.qa_players (name, pass_hash)
+  values (btrim(p_name), extensions.crypt(p_password, extensions.gen_salt('bf', 8)))
+  returning id into v_id;
+  return json_build_object('token', public.qa_new_session(v_id), 'name', btrim(p_name), 'state', '{}'::jsonb);
+exception
+  when unique_violation then raise exception 'name_taken';
+end;
+$$;
+
+revoke all on function public.qa_valid_name(text), public.qa_name_available(text) from public;
+grant execute on function public.qa_valid_name(text), public.qa_name_available(text) to anon, authenticated;

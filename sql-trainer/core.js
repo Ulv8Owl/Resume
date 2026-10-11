@@ -18,34 +18,49 @@
     name_taken: 'Этот никнейм уже занят. Выбери другой или войди, если это ты.',
     bad_credentials: 'Неверный никнейм или пароль.',
     bad_name: 'Никнейм: от 2 до 32 символов — буквы, цифры, пробел, «-» и «_».',
-    bad_password: 'Пароль: не короче 6 символов.',
-    bad_session: 'Сессия истекла. Войди заново.',
-    state_too_large: 'Прогресс слишком большой для сохранения.',
+    bad_password: 'Пароль: от 6 до 72 символов.',
   };
+  const OFFLINE_MSG = 'Облако недоступно: нет связи с Supabase. Прогресс сохраняется в этом браузере и уйдёт в облако при следующем сохранении со связью.';
 
-  async function rpc(fn, args) {
-    let res;
-    try {
-      res = await fetch(`${CLOUD.url}/rest/v1/rpc/${fn}`, {
-        method: 'POST',
-        headers: { apikey: CLOUD.key, Authorization: `Bearer ${CLOUD.key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(args),
-      });
-    } catch (e) {
-      const err = new Error('Облако недоступно: нет связи с Supabase. Если игра открыта в окне просмотра Claude, облако там заблокировано — открой index.html из репозитория или скачанный файл. Прогресс пока сохраняется в браузере.');
-      err.offline = true;
-      throw err;
+  // Аккаунты — пользователи Supabase Auth. Сессию хранит и продлевает сама библиотека supabase-js.
+  let sb = null;
+  function client() {
+    if (sb) return sb;
+    if (!window.supabase || !window.supabase.createClient) {
+      const e = new Error(OFFLINE_MSG);
+      e.offline = true;
+      throw e;
     }
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : null;
-    if (!res.ok) {
-      const code = data && data.message;
-      const err = new Error(CLOUD_ERRORS[code] || (data && (data.message || data.hint)) || `Ошибка облака (${res.status}).`);
-      err.code = code;
-      throw err;
-    }
-    return data;
+    sb = window.supabase.createClient(CLOUD.url, CLOUD.key, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'qa-academy-auth' },
+    });
+    sb.auth.onAuthStateChange((event) => {
+      // токен обновления отозван или протух — просим войти заново
+      if (event === 'SIGNED_OUT' && Core.account && !loggingOut) sessionExpired();
+    });
+    return sb;
   }
+
+  function toError(error) {
+    const msg = (error && (error.message || String(error))) || '';
+    if (/Failed to fetch|NetworkError|Load failed|fetch failed/i.test(msg)) {
+      const e = new Error(OFFLINE_MSG);
+      e.offline = true;
+      return e;
+    }
+    if (/Invalid login credentials/i.test(msg)) return Object.assign(new Error(CLOUD_ERRORS.bad_credentials), { code: 'bad_credentials' });
+    if (CLOUD_ERRORS[msg]) return Object.assign(new Error(CLOUD_ERRORS[msg]), { code: msg });
+    return Object.assign(new Error(msg ? `Ошибка облака: ${msg}` : 'Ошибка облака.'), { code: 'cloud' });
+  }
+
+  async function call(promise) {
+    let res;
+    try { res = await promise; } catch (e) { throw toError(e); }
+    if (res.error) throw toError(res.error);
+    return res.data;
+  }
+  const rpc = (fn, args) => call(client().rpc(fn, args));
+  const loadRow = (userId) => call(client().from('qa_progress').select('nickname, state').eq('user_id', userId).single());
 
   // ---------- состояние ----------
 
@@ -85,7 +100,7 @@
   const boot = loadLocal();
   const Core = {
     state: boot.state,
-    account: boot.account, // { name, token }
+    account: boot.account, // { name, id } — пользователь Supabase Auth
     lastName: boot.lastName, // имя последнего вошедшего мага — подставляется в форму входа
     guest: boot.guest, // игрок сам выбрал игру без аккаунта
     sync: boot.account ? 'pending' : 'guest', // guest | pending | saving | saved | offline | error
@@ -117,19 +132,20 @@
     if (!Core.account) return;
     setSync('saving');
     try {
-      await rpc('qa_save', { p_token: Core.account.token, p_state: Core.state });
+      await call(client().from('qa_progress')
+        .update({ state: Core.state, updated_at: new Date().toISOString() })
+        .eq('user_id', Core.account.id));
       setSync('saved');
     } catch (e) {
-      if (e.code === 'bad_session') sessionExpired(e.message);
-      else setSync(e.offline ? 'offline' : 'error', e.message);
+      setSync(e.offline ? 'offline' : 'error', e.message);
     }
   }
 
   // Сессия истекла: прогресс остаётся в браузере, а игрока просят войти заново.
-  function sessionExpired(msg) {
+  function sessionExpired() {
     Core.account = null;
     writeLocal();
-    setSync('guest', msg);
+    setSync('guest');
     showGate('login', 'Сессия истекла. Войди заново — прогресс из этого браузера сохранится в облаке.');
   }
 
@@ -139,20 +155,34 @@
     renderSync();
   }
 
-  // При входе облако и браузер сравниваются: побеждает более свежий прогресс.
-  async function pullCloud() {
-    if (!Core.account) return;
+  // При запуске: если есть сохранённая сессия Supabase Auth — входим сами и сверяем прогресс с облаком.
+  async function restoreSession() {
+    let session = null;
     try {
-      const d = await rpc('qa_load', { p_token: Core.account.token });
-      adopt(d.state);
-      Core.account.name = d.name;
+      const d = await call(client().auth.getSession());
+      session = d && d.session;
+    } catch (e) {
+      if (Core.account) setSync('offline', e.message);
+      return !!Core.account;
+    }
+    if (!session) {
+      if (Core.account) sessionExpired();
+      return false;
+    }
+    try {
+      const row = await loadRow(session.user.id);
+      Core.account = { name: row.nickname, id: session.user.id };
+      Core.lastName = row.nickname;
+      Core.guest = false;
+      adopt(row.state);
       writeLocal();
       setSync('saved');
     } catch (e) {
-      if (e.code === 'bad_session') sessionExpired(e.message);
-      else setSync(e.offline ? 'offline' : 'error', e.message);
+      Core.account = Core.account || { name: Core.lastName || 'маг', id: session.user.id };
+      setSync(e.offline ? 'offline' : 'error', e.message);
     }
     Core.refresh();
+    return true;
   }
 
   function isEmpty(st) { return !st || !st.updatedAt; }
@@ -166,10 +196,16 @@
     return 'pushed';
   }
 
+  // Регистрация создаёт пользователя Auth по никнейму (без почты и подтверждений), вход — по никнейму и паролю.
   Core.login = async function login(name, password, create) {
-    const d = await rpc(create ? 'qa_register' : 'qa_login', { p_name: name, p_password: password });
-    Core.account = { name: d.name, token: d.token };
-    Core.lastName = d.name;
+    const email = create
+      ? (await rpc('qa_register', { p_name: name, p_password: password })).email
+      : await rpc('qa_login_email', { p_name: name });
+    if (!email) throw Object.assign(new Error(CLOUD_ERRORS.bad_credentials), { code: 'bad_credentials' });
+    const auth = await call(client().auth.signInWithPassword({ email, password }));
+    const row = await loadRow(auth.user.id);
+    Core.account = { name: row.nickname, id: auth.user.id };
+    Core.lastName = row.nickname;
     Core.guest = false;
     let how;
     if (create) {
@@ -178,7 +214,7 @@
       writeLocal();
       await pushCloud();
     } else {
-      const r = adopt(d.state);
+      const r = adopt(row.state);
       how = r === 'pulled' ? 'Прогресс загружен из облака.' : 'Прогресс из этого браузера сохранён в облаке.';
       writeLocal();
       if (r === 'pulled') setSync('saved');
@@ -187,10 +223,13 @@
     return how;
   };
 
+  let loggingOut = false;
   Core.logout = async function logout() {
-    const acc = Core.account;
     clearTimeout(cloudTimer);
-    if (acc) { try { await rpc('qa_logout', { p_token: acc.token }); } catch (e) { /* выходим в любом случае */ } }
+    if (Core.account) await pushCloud();
+    loggingOut = true;
+    try { await client().auth.signOut(); } catch (e) { /* выходим в любом случае */ }
+    loggingOut = false;
     Core.account = null;
     Core.guest = false;
     Core.state = freshState();
@@ -510,10 +549,11 @@
 
   // ---------- запуск ----------
 
-  Core.start = function start() {
+  Core.start = async function start() {
     document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => Core.go(b.dataset.go)));
     Core.go('home');
-    if (Core.account) pullCloud(); // уже заходил: входим сами по сохранённой сессии
-    else if (!Core.guest) showGate(Core.lastName ? 'login' : 'register');
+    if (Core.account) setSync('pending');
+    const signedIn = await restoreSession(); // уже заходил: входим сами по сохранённой сессии
+    if (!signedIn && !Core.account && !Core.guest && $('auth-gate').hidden) showGate(Core.lastName ? 'login' : 'register');
   };
 })();

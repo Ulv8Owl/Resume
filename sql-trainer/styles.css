@@ -13,6 +13,7 @@
 
   --font-display: "Pixelify Sans", "Rubik", system-ui, sans-serif;
   --font-body: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-rune: "Noto Sans Runic", "Segoe UI Historic", "Segoe UI Symbol", serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 
   --step--1: 0.8rem;
@@ -61,7 +62,7 @@ button:focus-visible, textarea:focus-visible, .map-room:focus-visible, .schema-t
 .map { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding: 4px 2px 8px; }
 .map-room {
   flex: 0 0 auto; display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 10px;
-  padding: 8px 14px 8px 10px; min-width: 190px; text-align: left;
+  padding: 8px 12px 8px 10px; min-width: 170px; text-align: left;
   background: var(--slab); border: 1px solid var(--seam); border-radius: var(--radius);
 }
 .map-room .sprite { grid-row: span 2; font-size: 1.6rem; line-height: 1; }
@@ -71,7 +72,8 @@ button:focus-visible, textarea:focus-visible, .map-room:focus-visible, .schema-t
 .map-room.current { border-color: var(--torch); box-shadow: 0 0 0 1px var(--torch), 0 0 18px color-mix(in srgb, var(--torch) 25%, transparent); }
 .map-room.cleared .name { color: var(--rune); }
 .map-room.locked { opacity: 0.45; cursor: not-allowed; }
-.map-path { flex: 0 0 28px; align-self: center; height: 2px; background: repeating-linear-gradient(90deg, var(--seam) 0 6px, transparent 6px 10px); }
+.map { scroll-behavior: smooth; }
+.map-path { flex: 0 0 18px; align-self: center; height: 2px; background: repeating-linear-gradient(90deg, var(--seam) 0 6px, transparent 6px 10px); }
 
 /* ---------- main columns ---------- */
 .board { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; align-items: start; }
@@ -104,6 +106,8 @@ button:focus-visible, textarea:focus-visible, .map-room:focus-visible, .schema-t
 
 /* task + hints */
 .task p { margin: 0; max-width: 62ch; }
+.task-spell { margin-top: 10px; font-size: var(--step--1); color: var(--dust); }
+.task-spell b { color: var(--torch); font-family: var(--font-display); font-weight: 500; font-size: var(--step-0); }
 .task-tables { margin-top: 10px; font-size: var(--step--1); color: var(--dust); }
 .reward { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; font-variant-numeric: tabular-nums; }
 .reward .stars { color: var(--torch); letter-spacing: 0.12em; }
@@ -156,8 +160,51 @@ button:focus-visible, textarea:focus-visible, .map-room:focus-visible, .schema-t
 .btn.attack { background: var(--torch); color: var(--ink); border-color: var(--torch); font-family: var(--font-display); font-size: var(--step-1); padding: 7px 18px; }
 .btn.attack:hover:not(:disabled) { filter: brightness(1.08); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.kbd { font-size: var(--step--1); color: var(--dust); margin-left: auto; }
+.kbd { font-size: var(--step--1); color: var(--dust); margin: 8px 0 0; }
 .kbd kbd { font-family: var(--font-mono); border: 1px solid var(--seam); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 0.9em; }
+
+/* spell desk: book + pentagram */
+.desk { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.desk-book, .desk-circle { min-width: 0; }
+.desk-book textarea { min-height: 236px; }
+
+.pentagram { display: grid; gap: 8px; justify-items: center; }
+.pentagram-svg { width: 100%; max-width: 300px; height: auto; display: block; overflow: visible; }
+.pg-circle { fill: none; stroke: var(--seam); stroke-width: 1.2; transition: stroke 0.4s; }
+.pg-circle.outer { stroke-width: 2; }
+.pg-circle.core { stroke-dasharray: 2 5; }
+.pentagram.stable .pg-circle { stroke: color-mix(in srgb, var(--rune) 70%, var(--seam)); }
+.pentagram.broken .pg-circle { stroke: color-mix(in srgb, var(--blood) 70%, var(--seam)); }
+.pg-ring { transform-origin: 150px 150px; animation: spin 90s linear infinite; }
+.pg-ring-text { font: 600 9.5px var(--font-mono); letter-spacing: 0.08em; fill: var(--dust); }
+.pentagram.stable .pg-ring-text { fill: var(--torch); }
+.pg-line { stroke: var(--seam); stroke-width: 1.2; stroke-dasharray: 3 4; transition: stroke 0.4s; }
+.pg-line.on { stroke: var(--torch); stroke-dasharray: none; stroke-width: 1.6; filter: drop-shadow(0 0 3px var(--torch)); }
+.pg-vertex circle { fill: var(--ink); stroke: var(--seam); stroke-width: 1.4; transition: stroke 0.3s, fill 0.3s; }
+.pg-vertex text { font: 17px var(--font-rune); fill: var(--seam); transition: fill 0.3s; }
+.pg-vertex.on circle { stroke: var(--torch); fill: color-mix(in srgb, var(--torch) 14%, var(--ink)); }
+.pg-vertex.on text { fill: var(--parchment); }
+.pg-vertex.on { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--torch) 70%, transparent)); }
+.pg-vertex, .pg-rune { transform-box: fill-box; transform-origin: center; }
+.pg-vertex.new, .pg-rune.new { animation: rune-in 0.55s ease-out; }
+.pg-rune circle { fill: var(--ink); stroke: var(--rune); stroke-width: 1; }
+.pg-rune text { font: 12px var(--font-rune); fill: var(--rune); }
+.pg-entity { font: 600 10px var(--font-mono); fill: var(--torch); letter-spacing: 0.06em; }
+.pg-status { text-align: center; display: grid; gap: 2px; font-size: var(--step--1); color: var(--dust); max-width: 300px; overflow-wrap: anywhere; }
+.pg-status b { font-family: var(--font-display); font-weight: 500; font-size: var(--step-1); color: var(--parchment); }
+.pentagram.broken .pg-status span { color: var(--blood); }
+.pentagram.stable .pg-status span { color: var(--rune); }
+.pg-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; max-width: 300px; }
+.pg-legend li { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; color: var(--dust); border: 1px solid var(--seam); border-radius: 999px; padding: 1px 8px 1px 6px; }
+.pg-legend .g { font-family: var(--font-rune); color: var(--torch); font-size: 0.9rem; }
+.pg-legend code { background: none; padding: 0; color: var(--parchment); font-size: 0.68rem; }
+.pentagram.cast .pentagram-svg { animation: cast 0.9s ease-out; }
+.pentagram.fizzle .pentagram-svg { animation: fizzle 0.5s ease; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes rune-in { 0% { transform: scale(2.2); opacity: 0; } 60% { opacity: 1; } 100% { transform: scale(1); } }
+@keyframes cast { 0% { filter: drop-shadow(0 0 0 var(--torch)); transform: scale(1); } 35% { filter: drop-shadow(0 0 22px var(--torch)); transform: scale(1.05) rotate(6deg); } 100% { filter: drop-shadow(0 0 0 transparent); transform: scale(1); } }
+@keyframes fizzle { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-6px); filter: drop-shadow(0 0 8px var(--blood)); } 50% { transform: translateX(5px); } 75% { transform: translateX(-2px); } }
 
 /* results */
 .results-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -191,6 +238,10 @@ td.null { color: var(--dust); font-style: italic; }
 
 .loading { color: var(--dust); }
 
+@media (max-width: 1180px) {
+  .desk { grid-template-columns: minmax(0, 1fr); }
+  .desk-book textarea { min-height: 150px; }
+}
 @media (max-width: 920px) {
   .board { grid-template-columns: minmax(0, 1fr); }
   /* на узком экране порядок как у игрока: задание, схема, запрос, результат */

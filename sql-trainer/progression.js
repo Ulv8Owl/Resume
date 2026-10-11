@@ -6,15 +6,15 @@
   // Весь опыт игры. Его делят режимы: больше там, где сложнее (SQL и API).
   const TOTAL_XP = 20000;
 
-  // planned — сколько уровней (или карточек) в режиме будет в полной версии.
-  // Опыт за уровень берётся из бюджета режима по запланированному объёму, а не по уже готовому.
+  // planned — сколько уровней (или карточек) в режиме. Опыт за уровень берётся из бюджета режима.
   const MODES = [
-    { id: 'theory',   name: 'Теория',            share: 0.15, planned: 160, unit: 'карточек', tagline: 'Вопросы собеседования по всем темам тестирования' },
-    { id: 'sql',      name: 'SQL',               share: 0.30, planned: 90,  unit: 'залов',    tagline: 'Подземелье запросов: от SELECT до процедур' },
-    { id: 'swagger',  name: 'API · Swagger',     share: 0.12, planned: 20,  unit: 'уровней',  tagline: 'Читать документацию и пробовать эндпоинты' },
-    { id: 'postman',  name: 'API · Postman',     share: 0.15, planned: 20,  unit: 'уровней',  tagline: 'Запросы, окружения, авторизация' },
-    { id: 'charles',  name: 'API · Charles Proxy', share: 0.13, planned: 20, unit: 'уровней', tagline: 'Перехват трафика мобильного приложения' },
-    { id: 'devtools', name: 'DevTools',          share: 0.15, planned: 20,  unit: 'уровней',  tagline: 'Console, Network, Elements: ищем причину бага' },
+    { id: 'theory',   name: 'Теория',              share: 0.14, planned: 160, unit: 'карточек', tagline: 'Вопросы собеседования по всем темам тестирования' },
+    { id: 'sql',      name: 'SQL',                 share: 0.28, planned: 90,  unit: 'залов',    tagline: 'Подземелье запросов: от SELECT до процедур' },
+    { id: 'swagger',  name: 'API · Swagger',       share: 0.11, planned: 20,  unit: 'уровней',  tagline: 'Читать документацию и пробовать эндпоинты' },
+    { id: 'postman',  name: 'API · Postman',       share: 0.13, planned: 20,  unit: 'уровней',  tagline: 'Запросы, окружения, авторизация, тесты' },
+    { id: 'charles',  name: 'API · Charles Proxy', share: 0.11, planned: 20,  unit: 'уровней',  tagline: 'Перехват и подмена трафика мобильного приложения' },
+    { id: 'devtools', name: 'DevTools',            share: 0.12, planned: 20,  unit: 'уровней',  tagline: 'Console, Network, Elements, Application: ищем причину бага' },
+    { id: 'git',      name: 'Git · GitLab CI',     share: 0.11, planned: 20,  unit: 'уровней',  tagline: 'Ветки, коммиты, merge request и пайплайны' },
   ];
   MODES.forEach((m) => { m.budget = Math.round(TOTAL_XP * m.share); });
 

@@ -354,41 +354,16 @@
 
   // ---------- стартовый экран ----------
 
-  const GREETINGS = [
-    'Каждый мастер когда-то был учеником. Начнём с азов.',
-    'Посох уже не дрожит в руке. Пора на испытания посложнее.',
-    'Ты знаешь основы. Теперь отточим их до блеска.',
-    'Твои заклинания уже пугают баги. Продолжим.',
-    'Ты видишь систему насквозь. Осталось закрепить мастерство.',
-    'Магистры не гадают, они проверяют. Ты из таких.',
-    'До вершины рукой подать. Не останавливайся.',
-    'Архимаг. Ты готов к любому собеседованию.',
-  ];
-
   function renderHome() {
     const xp = Core.xp();
     const rk = P.rankFor(xp);
     const nx = P.nextRank(rk);
-    const arch = P.RANKS[P.RANKS.length - 1];
     $('home-avatar').src = Core.avatar(rk);
     $('home-avatar').alt = `Аватар: ${rk.name}`;
-    $('home-rank').textContent = rk.name;
-    $('home-greeting').textContent = (Core.account ? `${Core.account.name}, ` : '') + GREETINGS[rk.index].charAt(0).toLowerCase() + GREETINGS[rk.index].slice(1);
-    if (!Core.account) $('home-greeting').textContent = GREETINGS[rk.index];
-    $('home-next').textContent = nx
-      ? `До звания «${nx.name}»: ${nx.xp - xp} XP. До Архимага: ${Math.max(0, arch.xp - xp)} XP.`
-      : `Ты Архимаг. Всего опыта: ${xp} XP.`;
-    setBar($('home-xp-bar'), xp / arch.xp);
+    $('home-rank').innerHTML = esc(rk.name) + (Core.account ? ` <span class="home-name">«${esc(Core.account.name)}»</span>` : '');
+    $('home-next').textContent = nx ? `До звания «${nx.name}»: ${nx.xp - xp} XP` : `Высшее звание · ${xp} XP`;
+    setBar($('home-xp-bar'), nx ? (xp - rk.xp) / (nx.xp - rk.xp) : 1);
 
-    // лестница званий
-    $('ladder').innerHTML = P.RANKS.map((r) => `
-      <li class="${r.index === rk.index ? 'current' : r.index < rk.index ? 'passed' : ''}">
-        <img src="${Core.avatar(r)}" alt="" width="44" height="44" loading="lazy">
-        <span class="ladder-name">${esc(r.name)}</span>
-        <span class="ladder-xp">${r.xp} XP</span>
-      </li>`).join('');
-
-    // режимы
     $('modes').innerHTML = P.MODES.map((m) => {
       const api = Core.modes[m.id] || {};
       const pr = api.progressOf ? api.progressOf(Core.state) : { done: 0, available: 0 };
@@ -399,38 +374,42 @@
         <span class="mode-name">${esc(m.name)}</span>
         <span class="mode-tag">${esc(m.tagline)}</span>
         <span class="mode-meta">
-          <span>Пройдено: <b>${pr.done}</b> из ${pr.available} готовых · всего будет ${m.planned} ${m.unit}</span>
+          <span>Пройдено: <b>${pr.done}</b> из ${pr.available} ${m.unit}</span>
           <span class="bar xp"><i style="width:${Math.min(100, (earned / m.budget) * 100)}%"></i></span>
           <span>Опыт: ${earned} / ${m.budget} XP · ${Math.round(m.share * 100)}% всего опыта</span>
         </span>
       </button>`;
     }).join('');
     document.querySelectorAll('.mode-card').forEach((b) => b.addEventListener('click', () => Core.go(b.dataset.mode)));
-
-    renderAccount();
   }
 
-  function renderAccount() {
-    const box = $('account');
-    if (Core.account) {
-      box.innerHTML = `
-        <p class="eyebrow">Аккаунт</p>
-        <p class="acc-line">Ты вошёл как <b>${esc(Core.account.name)}</b>. Прогресс сохраняется в облаке, а при следующем заходе игра войдёт сама.</p>
-        <div class="acc-actions">
-          <button class="btn" id="logout-btn" type="button">Выйти</button>
-          <button class="ghost-btn" id="reset-all-btn" type="button">Сбросить весь прогресс</button>
-        </div>`;
-      $('logout-btn').addEventListener('click', () => Core.logout());
-    } else {
-      box.innerHTML = `
-        <p class="eyebrow">Сохранение в облаке</p>
-        <p class="acc-line">Ты играешь без аккаунта: прогресс хранится только в этом браузере. Создай мага, чтобы продолжать с любого устройства.</p>
-        <div class="acc-actions">
-          <button class="btn attack" id="open-gate-btn" type="button">Войти или создать мага</button>
-          <button class="ghost-btn" id="reset-all-btn" type="button">Сбросить весь прогресс</button>
-        </div>`;
-      $('open-gate-btn').addEventListener('click', () => showGate(Core.lastName ? 'login' : 'register'));
-    }
+  // ---------- настройки: аккаунт и сброс прогресса ----------
+
+  function openSettings() {
+    const acc = Core.account;
+    const close = Core.modal(`
+      <div class="settings">
+        <h3>Настройки</h3>
+        <div class="settings-block">
+          <p class="eyebrow">Аккаунт</p>
+          <p class="acc-line">${acc
+            ? `Ты вошёл как <b>${esc(acc.name)}</b>. Прогресс сохраняется в облаке, а при следующем заходе игра войдёт сама.`
+            : 'Ты играешь без аккаунта: прогресс хранится только в этом браузере. Создай мага, чтобы продолжать с любого устройства.'}</p>
+          <div class="acc-actions">${acc
+            ? '<button class="btn" id="logout-btn" type="button">Выйти из аккаунта</button>'
+            : '<button class="btn attack" id="open-gate-btn" type="button">Войти или создать мага</button>'}</div>
+        </div>
+        <div class="settings-block">
+          <p class="eyebrow">Прогресс</p>
+          <p class="acc-line">Сброс обнуляет опыт, золото и пройденные уровни во всех режимах.</p>
+          <div class="acc-actions"><button class="ghost-btn" id="reset-all-btn" type="button">Сбросить весь прогресс</button></div>
+        </div>
+        <button class="btn" id="modal-close" type="button">Закрыть</button>
+      </div>`);
+    const lo = $('logout-btn');
+    if (lo) lo.addEventListener('click', () => { close(); Core.logout(); });
+    const og = $('open-gate-btn');
+    if (og) og.addEventListener('click', () => { close(); showGate(Core.lastName ? 'login' : 'register'); });
     const reset = $('reset-all-btn');
     reset.addEventListener('click', () => {
       if (reset.dataset.armed !== '1') {
@@ -439,9 +418,11 @@
         setTimeout(() => { if (reset.isConnected) { reset.dataset.armed = ''; reset.textContent = 'Сбросить весь прогресс'; } }, 4000);
         return;
       }
+      close();
       Core.resetAll();
     });
   }
+  Core.openSettings = openSettings;
 
   // ---------- экран входа и регистрации ----------
 
@@ -551,6 +532,7 @@
 
   Core.start = async function start() {
     document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => Core.go(b.dataset.go)));
+    $('settings-btn').addEventListener('click', openSettings);
     Core.go('home');
     if (Core.account) setSync('pending');
     const signedIn = await restoreSession(); // уже заходил: входим сами по сохранённой сессии

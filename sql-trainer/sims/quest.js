@@ -10,7 +10,8 @@
   const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 
   // opts: { mode, icon, title, levels: [level], buildSim(el, ctx, level) → { reset?() } }
-  // level: { id, title, giver: { name, sprite }, intro, gold, steps: [step], hints: [3] }
+  // level: { id, title, giver: { name, sprite }, gold, steps: [step], hints: [3], outro? }
+  // Уровни открываются по порядку: следующий доступен, когда пройден предыдущий.
   // step: { id, text, check?(ctx) → bool, answer?: { kind: 'text'|'choice', options?, accept(value) → bool, placeholder? }, success? }
   function create(opts) {
     const screen = document.querySelector(`.screen[data-screen="${opts.mode}"]`);
@@ -29,18 +30,28 @@
     const simEl = screen.querySelector('.sim-area');
     const levelsEl = screen.querySelector('.sim-levels');
 
-    let level = opts.levels[0];
+    let level = null;
     let sim = null;
     let ctx = null;
     let lastNote = '';
 
-    function store() {
+    function modeStore() {
       const st = Core.state;
       if (!st.sims) st.sims = {};
       if (!st.sims[opts.mode]) st.sims[opts.mode] = { levels: {} };
-      const m = st.sims[opts.mode];
+      return st.sims[opts.mode];
+    }
+    function store() {
+      const m = modeStore();
       if (!m.levels[level.id]) m.levels[level.id] = { cleared: false, stars: 0, hints: 0, done: [] };
       return m.levels[level.id];
+    }
+    const clearedAt = (i) => { const ls = modeStore().levels[opts.levels[i].id]; return !!(ls && ls.cleared); };
+    const unlocked = (i) => i === 0 || clearedAt(i - 1) || clearedAt(i);
+    // Первый непройденный открытый уровень — с него продолжаем.
+    function firstOpen() {
+      const i = opts.levels.findIndex((l, k) => unlocked(k) && !clearedAt(k));
+      return opts.levels[i < 0 ? 0 : i];
     }
 
     function xpOfLevel(i) { return P.levelXp(opts.mode, i); }
@@ -95,10 +106,13 @@
       const gold = Math.round(level.gold * mult);
 
       levelsEl.innerHTML = opts.levels.map((l, i) => {
-        const ls = (Core.state.sims[opts.mode] || { levels: {} }).levels[l.id] || {};
-        return `<button class="sim-level${l === level ? ' active' : ''}" type="button" data-i="${i}">Уровень ${i + 1}${ls.cleared ? ' ' + starStr(ls.stars) : ''}</button>`;
-      }).join('') + '<span class="sim-soon">Новые уровни скоро</span>';
-      levelsEl.querySelectorAll('.sim-level').forEach((b) => b.addEventListener('click', () => { level = opts.levels[+b.dataset.i]; startLevel(); }));
+        const ls = modeStore().levels[l.id] || {};
+        const open = unlocked(i);
+        const cls = `sim-level${l === level ? ' active' : ''}${ls.cleared ? ' cleared' : ''}${open ? '' : ' locked'}`;
+        const tip = `${i + 1}. ${l.title}${ls.cleared ? ' · ' + starStr(ls.stars) : open ? '' : ' · откроется после уровня ' + i}`;
+        return `<button class="${cls}" type="button" data-i="${i}" title="${esc(tip)}" ${open ? '' : 'disabled'}>${open ? i + 1 : '🔒'}${ls.cleared ? `<small>${'★'.repeat(ls.stars)}</small>` : ''}</button>`;
+      }).join('');
+      levelsEl.querySelectorAll('.sim-level:not([disabled])').forEach((b) => b.addEventListener('click', () => { level = opts.levels[+b.dataset.i]; startLevel(); }));
 
       const steps = level.steps.map((s, i) => {
         const done = st.done.includes(s.id);
@@ -135,7 +149,6 @@
             <p class="giver-meta">${st.cleared ? 'Испытание пройдено' : `Печать испытания: ${total - doneCount} из ${total}`}</p>
           </div>
         </div>
-        <p class="intro">${level.intro}</p>
         ${lastNote ? `<p class="step-success">${lastNote}</p>` : ''}
         <ol class="steps">${steps}</ol>
         <div class="reward">${st.cleared
@@ -193,6 +206,7 @@
       Core.save();
       Core.renderHud();
       render();
+      const next = opts.levels[idx + 1];
       const items = [
         `<li><span>Золото${st.hints ? ` (${Math.round(HINT_MULT[st.hints] * 100)}%)` : ''}</span><span>+${gold}</span></li>`,
         `<li><span>Опыт</span><span>+${xpOfLevel(idx)} XP</span></li>`,
@@ -202,10 +216,10 @@
         <h3>Испытание пройдено</h3>
         <div class="modal-stars">${starStr(st.stars)}</div>
         <ul class="loot">${items}</ul>
-        <p class="modal-tip">${esc(level.outro || 'Новые уровни этого режима скоро появятся.')}</p>
-        <button class="btn attack" id="modal-next" type="button">К выбору режима</button>
+        ${level.outro ? `<p class="modal-tip">${esc(level.outro)}</p>` : ''}
+        <button class="btn attack" id="modal-next" type="button">${next ? `Уровень ${idx + 2} →` : 'К выбору режима'}</button>
         <button class="btn" id="modal-close" type="button">Остаться</button>
-      `, { onNext: () => Core.go('home') });
+      `, { onNext: () => { if (next) { level = next; setTimeout(startLevel, 0); } else Core.go('home'); } });
     }
 
     function startLevel() {
@@ -228,7 +242,7 @@
         const m = (state.sims && state.sims[opts.mode]) || { levels: {} };
         return { done: opts.levels.filter((l) => m.levels[l.id] && m.levels[l.id].cleared).length, available: opts.levels.length };
       },
-      open: () => { if (!started) { started = true; startLevel(); } else render(); },
+      open: () => { if (!started) { started = true; level = firstOpen(); startLevel(); } else render(); },
       refresh: () => render(),
     });
 

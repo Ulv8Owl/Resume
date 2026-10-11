@@ -9,6 +9,11 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+Runic&family=Pixelify+Sans:wght@400;500&family=Rubik:ital,wght@0,400;0,500;1,400&display=swap">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="academy.css">
+<link rel="stylesheet" href="sims/swagger.css">
+<link rel="stylesheet" href="sims/postman.css">
+<link rel="stylesheet" href="sims/charles.css">
+<link rel="stylesheet" href="sims/devtools.css">
+<link rel="stylesheet" href="sims/git.css">
 </head>
 <body>
 <div class="shell">
@@ -27,6 +32,7 @@
       </div>
       <span class="chip gold" title="Золото">🪙 <b id="gold-text">0</b></span>
       <span class="chip sync guest" id="sync-chip">Гость</span>
+      <button class="gear" id="settings-btn" type="button" title="Настройки" aria-label="Настройки">⚙</button>
     </div>
   </header>
 
@@ -34,20 +40,14 @@
     <div class="home-hero panel">
       <img id="home-avatar" class="home-avatar" src="Avatars/1.webp" alt="" width="220" height="220">
       <div class="home-intro">
-        <p class="eyebrow">Твоё звание</p>
         <h2 class="home-rank" id="home-rank">Ученик</h2>
-        <p class="home-greeting" id="home-greeting"></p>
         <div class="bar xp home-bar"><i id="home-xp-bar"></i></div>
         <p class="home-next" id="home-next"></p>
-        <ol class="ladder" id="ladder" aria-label="Звания"></ol>
       </div>
     </div>
     <div class="home-grid">
-      <div>
-        <p class="eyebrow home-label">Выбери режим</p>
-        <div class="modes" id="modes"></div>
-      </div>
-      <aside class="panel account" id="account"></aside>
+      <p class="eyebrow home-label">Выбери режим</p>
+      <div class="modes" id="modes"></div>
     </div>
   </section>
 
@@ -132,6 +132,7 @@
   <section class="screen" data-screen="postman" hidden></section>
   <section class="screen" data-screen="charles" hidden></section>
   <section class="screen" data-screen="devtools" hidden></section>
+  <section class="screen" data-screen="git" hidden></section>
 </div>
 
 <section class="gate" id="auth-gate" hidden></section>
@@ -149,6 +150,21 @@
 <script src="spell.js"></script>
 <script src="app.js"></script>
 <script src="theory-data.js"></script>
+<script src="theory-cards/types.js"></script>
+<script src="theory-cards/design.js"></script>
+<script src="theory-cards/docs.js"></script>
+<script src="theory-cards/bugs.js"></script>
+<script src="theory-cards/sdlc.js"></script>
+<script src="theory-cards/http.js"></script>
+<script src="theory-cards/rest.js"></script>
+<script src="theory-cards/db.js"></script>
+<script src="theory-cards/web.js"></script>
+<script src="theory-cards/mobile.js"></script>
+<script src="theory-cards/perf.js"></script>
+<script src="theory-cards/security.js"></script>
+<script src="theory-cards/auto.js"></script>
+<script src="theory-cards/git.js"></script>
+<script src="theory-cards/agile.js"></script>
 <script src="theory.js"></script>
 <script src="sims/api-mock.js"></script>
 <script src="sims/quest.js"></script>
@@ -156,6 +172,7 @@
 <script src="sims/postman.js"></script>
 <script src="sims/charles.js"></script>
 <script src="sims/devtools.js"></script>
+<script src="sims/git.js"></script>
 <script>window.Core.start();</script>
 </body>
 </html>

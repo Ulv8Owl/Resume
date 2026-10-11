@@ -1,4 +1,4 @@
-// Режим «Теория»: Оракул собеседований задаёт вопросы, игрок отвечает про себя и честно сверяется с ключевыми пунктами.
+// Режим «Теория»: карточки с вопросами собеседования. Игрок отвечает про себя и честно сверяется с ключевыми пунктами.
 (function () {
   'use strict';
 
@@ -37,7 +37,6 @@
     </div>
     <div class="th-board">
       <aside class="panel th-side">
-        <div class="oracle"><div class="oracle-orb" aria-hidden="true">🔮</div><div><p class="eyebrow">Оракул собеседований</p><p class="oracle-say" aria-live="polite"></p></div></div>
         <div class="th-stats"></div>
         <p class="eyebrow">Темы</p>
         <ul class="th-topics"></ul>
@@ -47,13 +46,11 @@
   screen.querySelector('[data-home]').addEventListener('click', () => Core.go('home'));
   const $ = (s) => screen.querySelector(s);
 
-  function say(text) { $('.oracle-say').textContent = text; }
-
   function renderSide() {
     const th = S();
     const totalKnown = allCards.filter((c) => th.cards[c.id] && th.cards[c.id].known).length;
     $('.th-stats').innerHTML = `
-      <span class="chip">Знаю: <b>${totalKnown}</b> из ${allCards.length} готовых</span>
+      <span class="chip">Знаю: <b>${totalKnown}</b> из ${allCards.length}</span>
       <span class="chip">🔥 Серия: <b>${session ? session.streak : 0}</b></span>
       <span class="chip">Рекорд серии: <b>${th.bestStreak || 0}</b></span>`;
     $('.th-topics').innerHTML = T.topics.map((t) => {
@@ -73,9 +70,6 @@
     const review = !!(th.topics[topic.id] && th.topics[topic.id].cleared);
     const ids = topic.cards.map((c) => c.id).filter((id) => review || !cardState(id).known);
     session = { topic, review, queue: shuffle(ids), streak: 0, phase: 'front', hints: 0, total: ids.length, done: 0, result: null };
-    say(review
-      ? 'Эта тема пройдена. Повторим её: знания без повторения тускнеют. Опыта за повторение нет, но растёт мастерство.'
-      : 'Я задаю вопросы так, как их задают на собеседовании. Ответь вслух или про себя, а потом честно сверься с ключевыми пунктами.');
     renderSide();
     renderStage();
   }
@@ -92,7 +86,7 @@
   function renderStage() {
     const stage = $('.th-stage');
     if (!session) {
-      stage.innerHTML = '<div class="panel th-empty"><p>Выбери тему слева. Сейчас готова тема «Основы тестирования», остальные появятся позже.</p></div>';
+      stage.innerHTML = '<div class="panel th-empty"><p>Выбери тему слева.</p></div>';
       return;
     }
     const card = current();
@@ -155,7 +149,7 @@
 
   function bindStage(card) {
     const on = (sel, fn) => { const b = screen.querySelector(sel); if (b) b.addEventListener('click', fn); };
-    on('[data-hint]', () => { session.hints++; say('Свиток подскажет направление. Но на собеседовании свитков не будет.'); renderStage(); });
+    on('[data-hint]', () => { session.hints++; renderStage(); });
     on('[data-know]', () => { session.showing = card.id; session.phase = 'check'; session.result = null; renderStage(); });
     on('[data-dunno]', () => { markUnknown(card, 'Честность — тоже навык. Прочитай ответ, я спрошу ещё раз позже.'); });
     on('[data-confirm]', () => {
@@ -189,7 +183,6 @@
     session.phase = 'result';
     const xpText = first && !session.review ? ` +${cardXp(card)} XP.` : '';
     session.result = { ok: true, text: `Засчитано: ${got} из ${card.points.length} пунктов.${gold ? ` +${gold} золота.` : ''}${xpText}` };
-    say(session.streak >= 3 ? `Серия ${session.streak}! Так отвечает уверенный кандидат.` : 'Верно. Так и ответил бы сильный кандидат.');
     const up = Core.rankUp(before);
     Core.save();
     Core.renderHud();
@@ -212,7 +205,6 @@
     session.queue.splice(Math.min(3, session.queue.length), 0, id);
     session.phase = 'learn';
     session.result = { ok: false, text };
-    say(text);
     Core.save();
     renderSide();
     renderStage();
@@ -231,7 +223,6 @@
     session = null;
     renderSide();
     renderStage();
-    say(firstClear ? 'Тема покорена. Возвращайся повторить её через пару дней — так знания закрепятся.' : 'Колода пройдена. Повторение — мать мастерства.');
     Core.modal(`
       <div class="big">🔮</div>
       <h3>${firstClear ? 'Тема пройдена' : 'Колода пройдена'}</h3>
@@ -241,7 +232,7 @@
         ${firstClear ? `<li><span>Награда за тему</span><span>+${TOPIC_GOLD}</span></li>` : ''}
         <li><span>Рекорд серии</span><span>${th.bestStreak || 0}</span></li>
       </ul>
-      <p class="modal-tip">${firstClear ? 'Остальные темы появятся позже. А пока можно повторить эту или заняться практикой.' : 'Опыт за карточку даётся один раз, а мастерство растёт с каждым повторением.'}</p>
+      <p class="modal-tip">Опыт за карточку даётся один раз, а мастерство растёт с каждым повторением темы.</p>
       <button class="btn attack" id="modal-next" type="button">К выбору режима</button>
       <button class="btn" id="modal-close" type="button">Остаться</button>`, { onNext: () => Core.go('home') });
   }
@@ -259,7 +250,6 @@
     open: () => {
       renderSide();
       renderStage();
-      if (!session) say('Добро пожаловать. Выбери тему — и я начну спрашивать.');
     },
     refresh: () => { renderSide(); renderStage(); },
   });

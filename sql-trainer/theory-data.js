@@ -1,4 +1,4 @@
-// Темы теории для собеседования QA. Готова первая тема, остальные появятся позже.
+// Темы теории для собеседования QA: 16 тем по 10 карточек.
 // Карточка: вопрос, три подсказки, ответ и ключевые пункты, по которым игрок честно сверяет свой ответ.
 window.THEORY = {
   topics: [
@@ -147,4 +147,10 @@ window.THEORY = {
     { id: 'git', name: 'Git и CI/CD', icon: '🌿', cards: [] },
     { id: 'agile', name: 'Agile, Scrum и команда', icon: '🤝', cards: [] },
   ],
+};
+// Карточки остальных тем лежат в theory-cards/<id темы>.js и добавляются сюда через THEORY.add.
+window.THEORY.add = function add(topicId, cards) {
+  const topic = window.THEORY.topics.find((t) => t.id === topicId);
+  if (!topic) throw new Error('Нет темы ' + topicId);
+  topic.cards.push(...cards);
 };

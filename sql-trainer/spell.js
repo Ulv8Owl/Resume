@@ -8,38 +8,68 @@
   const R_TEXT = 131;       // радиус кольцевой надписи
 
   // Главные руны — пять вершин звезды, в том порядке, в каком идут части запроса.
-  const VERTICES = [
-    { id: 'select', kw: 'SELECT',   glyph: 'ᛟ', name: 'Призыв',        re: /\bSELECT\b/ },
-    { id: 'from',   kw: 'FROM',     glyph: 'ᚠ', name: 'Источник',      re: /\bFROM\b/ },
-    { id: 'where',  kw: 'WHERE',    glyph: 'ᛉ', name: 'Печать отбора', re: /\bWHERE\b/ },
-    { id: 'group',  kw: 'GROUP BY', glyph: 'ᚷ', name: 'Сплетение',     re: /\bGROUP\s+BY\b/ },
-    { id: 'order',  kw: 'ORDER BY', glyph: 'ᛏ', name: 'Строй',         re: /\bORDER\s+BY\b/ },
+  // Первая вершина — «глагол» заклинания: что оно делает с Хрониками.
+  const VERBS = [
+    { kw: 'SELECT', glyph: 'ᛟ', name: 'Призыв',       re: /\bSELECT\b/ },
+    { kw: 'INSERT', glyph: 'ᚫ', name: 'Сотворение',   re: /\bINSERT\b/ },
+    { kw: 'UPDATE', glyph: 'ᚹ', name: 'Преображение', re: /\bUPDATE\b/ },
+    { kw: 'DELETE', glyph: 'ᛤ', name: 'Изгнание',     re: /\bDELETE\b/ },
+    { kw: 'CREATE', glyph: 'ᛠ', name: 'Возведение',   re: /\bCREATE\b/ },
   ];
+  const VERTICES = [
+    { id: 'verb', resolve: (q) => {
+      // глагол — то, что встречается в заклинании первым
+      let best = null;
+      VERBS.forEach((v) => { const m = q.search(v.re); if (m >= 0 && (!best || m < best.at)) best = Object.assign({ at: m }, v); });
+      return best;
+    } },
+    { id: 'source', resolve: (q) => (/\bFROM\b/.test(q) ? { kw: 'FROM', glyph: 'ᚠ', name: 'Источник' }
+      : /\bINTO\b/.test(q) ? { kw: 'INTO', glyph: 'ᚩ', name: 'Вместилище' }
+      : /\bSET\b/.test(q) ? { kw: 'SET', glyph: 'ᚪ', name: 'Перемена' } : null) },
+    { id: 'where', resolve: (q) => (/\bWHERE\b/.test(q) ? { kw: 'WHERE', glyph: 'ᛉ', name: 'Печать отбора' } : null) },
+    { id: 'group', resolve: (q) => (/\bGROUP\s+BY\b/.test(q) ? { kw: 'GROUP BY', glyph: 'ᚷ', name: 'Сплетение' } : null) },
+    { id: 'order', resolve: (q) => (/\bORDER\s+BY\b/.test(q) ? { kw: 'ORDER BY', glyph: 'ᛏ', name: 'Строй' } : null) },
+  ];
+  const IDLE_GLYPHS = ['ᛟ', 'ᚠ', 'ᛉ', 'ᚷ', 'ᛏ'];
 
   // Малые руны встают на круг между вершинами.
   const MINOR = [
-    { id: 'with',     kw: 'WITH',      glyph: 'ᛣ', name: 'Предзнаменование', re: /^\s*WITH\b/ },
-    { id: 'distinct', kw: 'DISTINCT',  glyph: 'ᛁ', name: 'Очищение',    re: /\bDISTINCT\b/ },
-    { id: 'join',     kw: 'JOIN',      glyph: 'ᛗ', name: 'Узы',         test: (q) => count(q, /\bJOIN\b/g) > count(q, /\bLEFT\s+(?:OUTER\s+)?JOIN\b/g) },
-    { id: 'left',     kw: 'LEFT JOIN', glyph: 'ᛞ', name: 'Тёмные узы',  re: /\bLEFT\s+(?:OUTER\s+)?JOIN\b/ },
-    { id: 'having',   kw: 'HAVING',    glyph: 'ᚺ', name: 'Клятва',      re: /\bHAVING\b/ },
-    { id: 'limit',    kw: 'LIMIT',     glyph: 'ᛚ', name: 'Предел',      re: /\bLIMIT\b/ },
-    { id: 'count',    kw: 'COUNT',     glyph: 'ᚲ', name: 'Счёт',        re: /\bCOUNT\s*\(/ },
-    { id: 'sum',      kw: 'SUM',       glyph: 'ᛊ', name: 'Сбор',        re: /\bSUM\s*\(/ },
-    { id: 'avg',      kw: 'AVG',       glyph: 'ᚨ', name: 'Мера',        re: /\bAVG\s*\(/ },
-    { id: 'min',      kw: 'MIN',       glyph: 'ᛃ', name: 'Умаление',    re: /\bMIN\s*\(/ },
-    { id: 'max',      kw: 'MAX',       glyph: 'ᛒ', name: 'Возвышение',  re: /\bMAX\s*\(/ },
-    { id: 'and',      kw: 'AND',       glyph: 'ᛖ', name: 'Союз',        re: /\bAND\b/ },
-    { id: 'or',       kw: 'OR',        glyph: 'ᚢ', name: 'Выбор',       re: /\bOR\b/ },
-    { id: 'not',      kw: 'NOT',       glyph: 'ᚾ', name: 'Отрицание',   re: /\bNOT\b/ },
-    { id: 'in',       kw: 'IN',        glyph: 'ᛇ', name: 'Круг',        re: /\bIN\s*\(/ },
-    { id: 'like',     kw: 'LIKE',      glyph: 'ᚱ', name: 'Отражение',   re: /\bLIKE\b/ },
-    { id: 'null',     kw: 'IS NULL',   glyph: 'ᛝ', name: 'Пустота',     re: /\bIS\s+(?:NOT\s+)?NULL\b/ },
-    { id: 'between',  kw: 'BETWEEN',   glyph: 'ᛈ', name: 'Грань',       re: /\bBETWEEN\b/ },
-    { id: 'case',     kw: 'CASE',      glyph: 'ᚦ', name: 'Развилка',    re: /\bCASE\b/ },
-    { id: 'exists',   kw: 'EXISTS',    glyph: 'ᛜ', name: 'Бытие',       re: /\bEXISTS\b/ },
-    { id: 'over',     kw: 'OVER',      glyph: 'ᛥ', name: 'Око',         re: /\bOVER\s*\(/ },
-    { id: 'sub',      kw: 'подзапрос', glyph: '◎', name: 'Малый круг',  test: (q) => count(q, /\bSELECT\b/g) > 1 },
+    { id: 'explain',   kw: 'EXPLAIN',     glyph: 'ᛳ', name: 'Прозрение',        re: /\bEXPLAIN\b/ },
+    { id: 'begin',     kw: 'BEGIN',       glyph: 'ᛋ', name: 'Начало',           re: /\bBEGIN\b/ },
+    { id: 'savepoint', kw: 'SAVEPOINT',   glyph: 'ᛲ', name: 'Веха',             re: /\bSAVEPOINT\b/ },
+    { id: 'rollback',  kw: 'ROLLBACK',    glyph: 'ᛱ', name: 'Откат',            re: /\bROLLBACK\b/ },
+    { id: 'commit',    kw: 'COMMIT',      glyph: 'ᛧ', name: 'Печать вечности',  re: /\bCOMMIT\b|\bEND\s+TRANSACTION\b/ },
+    { id: 'index',     kw: 'INDEX',       glyph: 'ᛪ', name: 'Указатель',        re: /\bINDEX\b/ },
+    { id: 'view',      kw: 'VIEW',        glyph: 'ᛮ', name: 'Окно',             re: /\bVIEW\b/ },
+    { id: 'trigger',   kw: 'TRIGGER',     glyph: 'ᛰ', name: 'Ловушка',          re: /\bTRIGGER\b/ },
+    { id: 'with',      kw: 'WITH',        glyph: 'ᛣ', name: 'Предзнаменование', re: /^\s*WITH\b/ },
+    { id: 'recursive', kw: 'RECURSIVE',   glyph: 'ᛯ', name: 'Петля',            re: /\bRECURSIVE\b/ },
+    { id: 'distinct',  kw: 'DISTINCT',    glyph: 'ᛁ', name: 'Очищение',         re: /\bDISTINCT\b/ },
+    { id: 'join',      kw: 'JOIN',        glyph: 'ᛗ', name: 'Узы',              test: (q) => count(q, /\bJOIN\b/g) > count(q, /\bLEFT\s+(?:OUTER\s+)?JOIN\b/g) },
+    { id: 'left',      kw: 'LEFT JOIN',   glyph: 'ᛞ', name: 'Тёмные узы',       re: /\bLEFT\s+(?:OUTER\s+)?JOIN\b/ },
+    { id: 'union',     kw: 'UNION',       glyph: 'ᚣ', name: 'Слияние',          re: /\bUNION\b/ },
+    { id: 'having',    kw: 'HAVING',      glyph: 'ᚺ', name: 'Клятва',           re: /\bHAVING\b/ },
+    { id: 'limit',     kw: 'LIMIT',       glyph: 'ᛚ', name: 'Предел',           re: /\bLIMIT\b/ },
+    { id: 'offset',    kw: 'OFFSET',      glyph: 'ᛦ', name: 'Отступ',           re: /\bOFFSET\b/ },
+    { id: 'values',    kw: 'VALUES',      glyph: 'ᛃ', name: 'Дары',             re: /\bVALUES\b/ },
+    { id: 'conflict',  kw: 'ON CONFLICT', glyph: 'ᛩ', name: 'Распря',           re: /\bON\s+CONFLICT\b|\bOR\s+(?:IGNORE|REPLACE)\b/ },
+    { id: 'returning', kw: 'RETURNING',   glyph: 'ᛨ', name: 'Отклик',           re: /\bRETURNING\b/ },
+    { id: 'count',     kw: 'COUNT',       glyph: 'ᚲ', name: 'Счёт',             re: /\bCOUNT\s*\(/ },
+    { id: 'sum',       kw: 'SUM',         glyph: 'ᛊ', name: 'Сбор',             re: /\bSUM\s*\(/ },
+    { id: 'avg',       kw: 'AVG',         glyph: 'ᚨ', name: 'Мера',             re: /\bAVG\s*\(/ },
+    { id: 'min',       kw: 'MIN',         glyph: 'ᛡ', name: 'Умаление',         re: /\bMIN\s*\(/ },
+    { id: 'max',       kw: 'MAX',         glyph: 'ᛒ', name: 'Возвышение',       re: /\bMAX\s*\(/ },
+    { id: 'and',       kw: 'AND',         glyph: 'ᛖ', name: 'Союз',             re: /\bAND\b/ },
+    { id: 'or',        kw: 'OR',          glyph: 'ᚢ', name: 'Выбор',            re: /\bOR\b(?!\s+(?:IGNORE|REPLACE))/ },
+    { id: 'not',       kw: 'NOT',         glyph: 'ᚾ', name: 'Отрицание',        re: /\bNOT\b/ },
+    { id: 'in',        kw: 'IN',          glyph: 'ᛇ', name: 'Круг',             re: /\bIN\s*\(/ },
+    { id: 'like',      kw: 'LIKE',        glyph: 'ᚱ', name: 'Отражение',        re: /\bLIKE\b/ },
+    { id: 'null',      kw: 'IS NULL',     glyph: 'ᛝ', name: 'Пустота',          re: /\bIS\s+(?:NOT\s+)?NULL\b/ },
+    { id: 'between',   kw: 'BETWEEN',     glyph: 'ᛈ', name: 'Грань',            re: /\bBETWEEN\b/ },
+    { id: 'case',      kw: 'CASE',        glyph: 'ᚦ', name: 'Развилка',         re: /\bCASE\b/ },
+    { id: 'exists',    kw: 'EXISTS',      glyph: 'ᛜ', name: 'Бытие',            re: /\bEXISTS\b/ },
+    { id: 'over',      kw: 'OVER',        glyph: 'ᛥ', name: 'Око',              re: /\bOVER\b/ },
+    { id: 'sub',       kw: 'подзапрос',   glyph: '◎', name: 'Малый круг',       test: (q) => /\(\s*SELECT\b/.test(q) },
   ];
 
   const TIERS = [
@@ -115,8 +145,8 @@
       const [x, y] = polar(R_VERTEX, vertexAngle(i));
       const g = el('g', { class: 'pg-vertex' });
       g.appendChild(el('circle', { cx: x, cy: y, r: 16 }));
-      g.appendChild(el('text', { x, y: y + 1, 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, v.glyph));
-      g.appendChild(el('title', {}, `${v.name} — ${v.kw}`));
+      g.appendChild(el('text', { x, y: y + 1, 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, IDLE_GLYPHS[i]));
+      g.appendChild(el('title', {}, ''));
       svg.appendChild(g);
       return g;
     });
@@ -139,13 +169,19 @@
     const q = strip(raw).toUpperCase();
     const isOn = (r) => (r.test ? r.test(q) : r.re.test(q));
 
-    const vOn = VERTICES.map(isOn);
+    const vRunes = VERTICES.map((v) => v.resolve(q));
+    const vOn = vRunes.map(Boolean);
     const minors = MINOR.filter(isOn);
-    const active = new Set([...VERTICES.filter((_, i) => vOn[i]), ...minors].map((r) => r.id));
+    // ключ руны вершины включает глагол: смена SELECT на INSERT — новая руна
+    const vKey = (i) => VERTICES[i].id + ':' + (vRunes[i] ? vRunes[i].kw : '');
+    const active = new Set(vRunes.map((r, i) => (r ? vKey(i) : null)).filter(Boolean).concat(minors.map((r) => r.id)));
 
     parts.verts.forEach((g, i) => {
+      const r = vRunes[i];
       g.classList.toggle('on', vOn[i]);
-      g.classList.toggle('new', vOn[i] && !prev.has(VERTICES[i].id));
+      g.classList.toggle('new', vOn[i] && !prev.has(vKey(i)));
+      g.querySelector('text').textContent = r ? r.glyph : IDLE_GLYPHS[i];
+      g.querySelector('title').textContent = r ? `${r.name} — ${r.kw}` : '';
     });
     parts.lines.forEach((l) => l.classList.toggle('on', vOn[l.dataset.a] && vOn[l.dataset.b]));
 
@@ -154,7 +190,7 @@
     minors.forEach((r, k) => {
       const gap = k % 5;
       const pos = Math.floor(k / 5);
-      const offsets = [36, 24, 48, 14, 58];
+      const offsets = [36, 24, 48, 14, 58, 30, 42];
       const [x, y] = polar(R_VERTEX, vertexAngle(gap) + offsets[pos % offsets.length]);
       const g = el('g', { class: 'pg-rune' + (prev.has(r.id) ? '' : ' new') });
       g.appendChild(el('circle', { cx: x, cy: y, r: 10 }));
@@ -165,12 +201,15 @@
 
     // в центре — сущности, к которым обращается заклинание (таблицы)
     const tables = [];
-    const reT = /\b(?:FROM|JOIN)\s+([A-Za-z_][\w]*)/gi;
-    let m;
     const plain = strip(raw);
+    const reT = /\b(?:FROM|JOIN|INTO|UPDATE|TABLE|VIEW|INDEX\s+\w+\s+ON|ON)\s+([A-Za-z_][\w]*)/gi;
+    const skip = ['select', 'lateral', 'or', 'of', 'conflict'];
+    let m;
     while ((m = reT.exec(plain))) {
       const t = m[1].toLowerCase();
-      if (!tables.includes(t) && !['select', 'lateral'].includes(t)) tables.push(t);
+      // ON g.id = … — это псевдоним в условии соединения, а не таблица
+      if (/^\s*\./.test(plain.slice(m.index + m[0].length))) continue;
+      if (!tables.includes(t) && !skip.includes(t) && t.length > 2) tables.push(t);
     }
     parts.center.innerHTML = '';
     tables.slice(0, 3).forEach((t, i, arr) => {
@@ -213,7 +252,7 @@
       ? '<b>Книга пуста</b><span>Начни писать — руны лягут на круг</span>'
       : `<b>${tier}</b><span>${state === 'stable' ? `Плетение устойчиво · рун: ${power}` : state === 'broken' ? `Плетение рвётся: ${esc(note)}` : `рун: ${power}`}</span>`;
 
-    parts.legend.innerHTML = [...VERTICES.filter((_, i) => vOn[i]), ...minors]
+    parts.legend.innerHTML = [...vRunes.filter(Boolean), ...minors]
       .map((r) => `<li><span class="g">${r.glyph}</span>${r.name}<code>${esc(r.kw)}</code></li>`)
       .join('');
 

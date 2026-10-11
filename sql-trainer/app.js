@@ -2,7 +2,8 @@
   'use strict';
 
   const D = window.DUNGEON;
-  const STORE_KEY = 'sql-dungeon-v2';
+  D.finalize();
+  const STORE_KEY = 'sql-dungeon-v3';
   const $ = (id) => document.getElementById(id);
 
   // ---------- состояние ----------
@@ -10,13 +11,9 @@
   function freshState() {
     const rooms = {};
     D.rooms.forEach((r, i) => {
-      rooms[r.id] = { unlocked: i === 0, cleared: false, stars: 0, golden: false, hints: 0, best: 0, wounds: 0 };
+      rooms[r.id] = { unlocked: i === 0, cleared: false, stars: 0, hints: 0, best: 0, wounds: 0 };
     });
-    return {
-      player: { level: 1, xp: 0, hp: 100, maxHp: 100, gold: 0 },
-      rooms,
-      current: D.rooms[0].id,
-    };
+    return { player: { xp: 0, hp: D.ranks[0].maxHp, gold: 0 }, rooms, current: D.rooms[0].id };
   }
 
   function load() {
@@ -25,9 +22,10 @@
       if (!raw) return freshState();
       const s = JSON.parse(raw);
       const base = freshState();
-      // новые комнаты из data.js подмешиваются к старому сохранению
       s.rooms = Object.assign(base.rooms, s.rooms || {});
-      return Object.assign(base, s);
+      const st = Object.assign(base, s);
+      if (!st.rooms[st.current]) st.current = D.rooms[0].id;
+      return st;
     } catch (e) {
       return freshState();
     }
@@ -38,138 +36,66 @@
   }
 
   let state = load();
-  let SQL = null;
-  let pristine = null; // байты эталонной БД; каждый запрос идёт по свежей копии
-  const expected = {};
+  let judge = null;
+  let viewAct = null;
 
   const room = () => D.rooms.find((r) => r.id === state.current);
   const progress = () => state.rooms[state.current];
-  const xpToNext = (lvl) => 50 * lvl;
-  const rankOf = (lvl) => D.ranks.filter(([from]) => lvl >= from).pop()[1];
-
-  // ---------- SQL ----------
-
-  function runSql(sql) {
-    const db = new SQL.Database(pristine);
-    try {
-      const res = db.exec(sql);
-      if (!res.length) return { columns: [], values: [] };
-      return res[res.length - 1];
-    } finally {
-      db.close();
-    }
-  }
-
-  function norm(v) {
-    if (v === null || v === undefined) return '∅';
-    if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(Math.round(v * 1e6) / 1e6);
-    return String(v);
-  }
-  const rowKey = (row) => row.map(norm).join('␟');
-
-  function multisetOverlap(a, b) {
-    const bag = new Map();
-    b.forEach((k) => bag.set(k, (bag.get(k) || 0) + 1));
-    let hit = 0;
-    a.forEach((k) => {
-      const n = bag.get(k) || 0;
-      if (n > 0) { hit++; bag.set(k, n - 1); }
-    });
-    return hit;
-  }
-
-  // Насколько результат игрока похож на эталон: 1 — точное совпадение.
-  function evaluate(actual, exp, ordered) {
-    const expCols = exp.columns.length;
-    const actCols = actual.columns.length;
-    const colSig = (res, i) => res.values.map((r) => norm(r[i])).sort().join('␟');
-    const expSigs = exp.columns.map((_, i) => colSig(exp, i));
-    const actSigs = actual.columns.map((_, i) => colSig(actual, i));
-    const colsHit = multisetOverlap(expSigs, actSigs);
-
-    let rowsHit = 0;
-    let rowF1 = 0;
-    if (actCols === expCols) {
-      rowsHit = multisetOverlap(actual.values.map(rowKey), exp.values.map(rowKey));
-      const p = actual.values.length ? rowsHit / actual.values.length : 0;
-      const r = exp.values.length ? rowsHit / exp.values.length : 0;
-      rowF1 = p + r ? (2 * p * r) / (p + r) : 0;
-    }
-    const sameSet = actCols === expCols && rowF1 === 1;
-    const orderOk = sameSet && actual.values.map(rowKey).join('\n') === exp.values.map(rowKey).join('\n');
-    const exact = sameSet && (!ordered || orderOk);
-
-    let sim = 1;
-    if (!exact) {
-      sim = 0.4 * (colsHit / expCols) + 0.6 * rowF1 * (sameSet && ordered && !orderOk ? 0.75 : 1);
-      sim = Math.min(0.9, sim);
-    }
-
-    const notes = [];
-    if (actCols !== expCols) notes.push(`Колонок: ${actCols}, а нужно ${expCols}.`);
-    notes.push(`Верных колонок: ${colsHit} из ${expCols}.`);
-    if (actCols === expCols) {
-      notes.push(`Совпало строк: ${rowsHit} из ${exp.values.length}` + (actual.values.length > rowsHit ? `, лишних: ${actual.values.length - rowsHit}.` : '.'));
-    } else {
-      notes.push(`Строк: ${actual.values.length}, нужно ${exp.values.length}.`);
-    }
-    if (ordered && sameSet && !orderOk) notes.push('Строки верные, но порядок другой.');
-    return { exact, sim, notes };
-  }
+  const rank = () => D.rankFor(state.player.xp);
+  const nextRank = () => D.ranks[D.ranks.indexOf(rank()) + 1] || null;
+  const maxHp = () => rank().maxHp;
+  const actOf = (r) => D.acts.findIndex((a) => r.index >= a.from && r.index < a.to);
 
   // ---------- рендер ----------
 
   function setBar(el, frac) { el.style.width = Math.max(0, Math.min(1, frac)) * 100 + '%'; }
+  const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function renderHud() {
     const p = state.player;
-    $('hp-text').textContent = `${p.hp} / ${p.maxHp}`;
-    setBar($('hp-bar'), p.hp / p.maxHp);
-    $('lvl-text').textContent = `${rankOf(p.level)} · ${p.level}`;
-    $('cleared-text').textContent = `${D.rooms.filter((r) => state.rooms[r.id].cleared).length} / ${D.rooms.length}`;
-    $('xp-text').textContent = `${p.xp} / ${xpToNext(p.level)} XP`;
-    setBar($('xp-bar'), p.xp / xpToNext(p.level));
+    p.hp = Math.min(p.hp, maxHp());
+    $('hp-text').textContent = `${p.hp} / ${maxHp()}`;
+    setBar($('hp-bar'), p.hp / maxHp());
+    const rk = rank();
+    const nx = nextRank();
+    $('rank-text').textContent = rk.name;
+    $('xp-text').textContent = nx ? `${p.xp - rk.xp} / ${nx.xp - rk.xp} XP до звания «${nx.name}»` : 'Высшее звание';
+    setBar($('xp-bar'), nx ? (p.xp - rk.xp) / (nx.xp - rk.xp) : 1);
     $('gold-text').textContent = p.gold;
-    const tro = $('trophies');
-    tro.innerHTML = '';
-    D.rooms.forEach((r) => {
-      const st = state.rooms[r.id];
-      if (!st.cleared) return;
-      const s = document.createElement('span');
-      s.className = 'trophy' + (st.golden ? ' gold' : '');
-      s.textContent = r.trophy.icon;
-      s.title = r.trophy.name + (st.golden ? ' (золотой: без подсказок и ранений)' : '');
-      tro.appendChild(s);
-    });
+    $('cleared-text').textContent = `${D.rooms.filter((r) => state.rooms[r.id].cleared).length} / ${D.rooms.length}`;
   }
 
-  const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
-
   function renderMap() {
-    const map = $('map');
-    map.innerHTML = '';
-    const add = (el) => {
-      if (map.children.length) {
-        const path = document.createElement('span');
-        path.className = 'map-path';
-        map.appendChild(path);
-      }
-      map.appendChild(el);
-    };
-    D.rooms.forEach((r) => {
+    if (viewAct == null) viewAct = actOf(room());
+    const acts = $('acts');
+    acts.innerHTML = '';
+    D.acts.forEach((a, i) => {
+      const done = D.rooms.slice(a.from, a.to).filter((r) => state.rooms[r.id].cleared).length;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'act-tab' + (i === viewAct ? ' active' : '') + (state.rooms[D.rooms[a.from].id].unlocked ? '' : ' sealed');
+      b.setAttribute('aria-pressed', i === viewAct ? 'true' : 'false');
+      b.innerHTML = `<span class="act-name">${a.name}</span><span class="act-progress">${done} / ${a.to - a.from}</span>`;
+      b.addEventListener('click', () => { viewAct = i; renderMap(); });
+      acts.appendChild(b);
+    });
+    $('act-topic').textContent = D.acts[viewAct].topic;
+
+    const tiles = $('tiles');
+    tiles.innerHTML = '';
+    D.rooms.slice(D.acts[viewAct].from, D.acts[viewAct].to).forEach((r) => {
       const st = state.rooms[r.id];
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'map-room' + (r.id === state.current ? ' current' : '') + (st.cleared ? ' cleared' : '') + (st.unlocked ? '' : ' locked');
+      b.className = 'tile' + (r.id === state.current ? ' current' : '') + (st.cleared ? ' cleared' : '') + (st.unlocked ? '' : ' locked') + (r.boss ? ' boss' : '');
       b.disabled = !st.unlocked;
-      b.innerHTML = `<span class="sprite">${st.unlocked ? r.sprite : '🔒'}</span>
-        <span><span class="floor">${r.floor}</span><br><span class="name">${st.unlocked ? r.monster : '???'}</span></span>
-        <span class="stars">${st.cleared ? starStr(st.stars) : st.unlocked ? 'в бою' : 'закрыто'}</span>`;
+      b.title = st.unlocked ? `${r.floor}: ${r.monster} · ${r.topic}` : `${r.floor}: закрыт`;
+      b.innerHTML = `<span class="tile-sprite">${st.unlocked ? r.sprite : '🔒'}</span><span class="tile-num">${r.index + 1}</span>` +
+        `<span class="tile-stars">${st.cleared ? starStr(st.stars) : r.boss ? 'босс' : '&nbsp;'}</span>`;
       b.addEventListener('click', () => switchRoom(r.id));
-      add(b);
+      tiles.appendChild(b);
     });
-    const cur = map.querySelector('.current');
-    if (cur) map.scrollLeft = cur.offsetLeft - map.clientWidth / 2 + cur.offsetWidth / 2;
   }
 
   function monsterHp() {
@@ -185,7 +111,8 @@
     const sprite = $('monster-sprite');
     sprite.textContent = r.sprite;
     sprite.classList.toggle('dead', st.cleared);
-    $('monster-name').innerHTML = r.monster + (r.boss ? '<span class="boss-tag">БОСС</span>' : '');
+    $('monster-floor').textContent = `${r.floor} · ${D.acts[actOf(r)].name}`;
+    $('monster-name').innerHTML = esc(r.monster) + (r.boss ? '<span class="boss-tag">БОСС</span>' : '');
     const hp = monsterHp();
     setBar($('monster-bar'), hp / r.maxHp);
     $('monster-meta').textContent = st.cleared
@@ -196,20 +123,21 @@
 
   function rewardFor(r, st) {
     const mult = D.hintMultipliers[st.hints];
-    return { gold: Math.round(r.gold * mult), xp: Math.round(r.xp * mult), stars: 3 - st.hints, mult };
+    return { gold: Math.round(r.gold * mult), xp: r.xp, stars: 3 - st.hints, mult };
   }
 
   function renderTask() {
     const r = room();
     const st = progress();
     $('task-text').innerHTML = r.task;
-    $('task-spell').innerHTML = `Заклинание: <b>${r.spell}</b> · ${r.topic}`;
-    $('task-tables').innerHTML = 'Таблицы: ' + r.tables.map((t) => `<code>${t}</code>`).join(', ') + (r.ordered ? ' · порядок строк проверяется' : ' · порядок строк не важен');
+    $('task-spell').innerHTML = `Заклинание: <b>${esc(r.spell)}</b> · ${esc(r.topic)}`;
+    const order = r.kind === 'query' ? (r.ordered ? ' · порядок строк проверяется' : ' · порядок строк не важен') : '';
+    $('task-tables').innerHTML = 'Таблицы: ' + r.tables.map((t) => `<code>${t}</code>`).join(', ') + order;
     const rw = rewardFor(r, st);
     $('reward').innerHTML = st.cleared
-      ? `<span class="stars">${starStr(st.stars)}</span><span class="muted">Комната зачищена</span>`
+      ? `<span class="stars">${starStr(st.stars)}</span><span class="muted">Зал зачищен</span>`
       : `<span>Добыча:</span><span class="chip gold">🪙 <b>${rw.gold}</b></span><span class="chip">✦ ${rw.xp} XP</span><span class="stars">${starStr(rw.stars)}</span>` +
-        `<span class="muted">${rw.mult < 1 ? `подсказки срезали добычу до ${Math.round(rw.mult * 100)}%` : `${r.trophy.icon} ${r.trophy.name}`}</span>`;
+        (rw.mult < 1 ? `<span class="muted">подсказки срезали золото до ${Math.round(rw.mult * 100)}%</span>` : '');
   }
 
   function renderHints() {
@@ -228,7 +156,7 @@
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'hint';
-      const cost = st.cleared ? 'бесплатно' : `добыча → ${Math.round(D.hintMultipliers[i + 1] * 100)}%`;
+      const cost = st.cleared ? 'бесплатно' : `золото → ${Math.round(D.hintMultipliers[i + 1] * 100)}%`;
       b.innerHTML = `<span class="lvl">${'I'.repeat(i + 1)}</span><span>Сломать печать свитка</span><span class="cost">${cost}</span>`;
       b.addEventListener('click', () => openHint(i));
       box.appendChild(b);
@@ -239,13 +167,13 @@
   // Короткая строка о последнем событии боя прямо под монстром.
   // В пределах одной атаки сообщения дописываются: «ты нанёс урон» + «монстр ответил».
   let turnLogged = false;
+  let inAttack = false;
   function log(t, m) {
     const line = $('arena-line');
     line.className = 'arena-line ' + t;
     line.textContent = turnLogged ? line.textContent + ' ' + m : m;
     turnLogged = inAttack;
   }
-  let inAttack = false;
 
   function renderSchema() {
     const dg = D.diagram;
@@ -307,24 +235,31 @@
   }
 
   function renderResult(res, opts) {
+    opts = opts || {};
     const box = $('results');
     const meta = $('results-meta');
     box.innerHTML = '';
-    if (opts && opts.verdict) box.appendChild(opts.verdict);
-    if (res.error) {
+    if (opts.verdict) box.appendChild(opts.verdict);
+    if (opts.error) {
       const p = document.createElement('p');
       p.className = 'error';
-      p.textContent = res.error;
+      p.textContent = opts.error;
       box.appendChild(p);
       meta.textContent = '';
       return;
     }
-    if (!res.columns.length) {
-      box.insertAdjacentHTML('beforeend', '<p class="empty">Запрос выполнен, но ничего не вернул.</p>');
+    if (opts.note) box.insertAdjacentHTML('beforeend', `<p class="empty">${esc(opts.note)}</p>`);
+    if (!res || !res.columns.length) {
+      if (!opts.note) box.insertAdjacentHTML('beforeend', '<p class="empty">Заклинание выполнено, но ничего не вернуло.</p>');
+      meta.textContent = opts.label || '';
+      return;
+    }
+    if (res.error) {
+      box.insertAdjacentHTML('beforeend', `<p class="error">${esc(res.error)}</p>`);
       meta.textContent = '';
       return;
     }
-    meta.textContent = (opts && opts.label ? opts.label + ' · ' : '') + `${res.values.length} строк`;
+    meta.textContent = (opts.label ? opts.label + ' · ' : '') + `${res.values.length} строк`;
     const wrap = document.createElement('div');
     wrap.className = 'table-wrap';
     const table = document.createElement('table');
@@ -370,41 +305,34 @@
     setTimeout(() => f.remove(), 1200);
   }
 
-  function shakeMonster() {
-    const m = $('monster-sprite');
-    m.classList.remove('hit');
-    void m.offsetWidth;
-    m.classList.add('hit');
-  }
-
-  function flashArena() {
-    const a = $('arena');
-    a.classList.remove('flash');
-    void a.offsetWidth;
-    a.classList.add('flash');
+  function pulse(el, cls) {
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
   }
 
   // ---------- действия ----------
 
-  function currentSql() { return $('sql').value; }
+  const currentSql = () => $('sql').value;
+  const modalOpen = () => !$('overlay').hidden;
 
   function scout() {
-    if (!SQL) return;
+    if (!judge) return;
     if (!currentSql().trim()) {
-      $('results').innerHTML = '<p class="empty">Книга пуста. Напиши заклинание и нажми «Разведать», или нажми на таблицу в схеме, чтобы прочесть её строки.</p>';
-      $('results-meta').textContent = '';
+      renderResult(null, { note: 'Книга пуста. Напиши заклинание и нажми «Разведать», или нажми на таблицу в схеме, чтобы прочесть её строки.' });
       return;
     }
-    try {
-      renderResult(runSql(currentSql()), { label: 'разведка' });
-    } catch (e) {
-      renderResult({ error: e.message });
-    }
+    const s = judge.scout(room(), currentSql());
+    if (s.error) return renderResult(null, { error: s.error });
+    const notes = [];
+    if (s.txLost) notes.push('Транзакция не была зафиксирована: без COMMIT её изменения отменены.');
+    if (s.changes) notes.push(`Изменено строк: ${s.changes}. В разведке Хроники восстанавливаются после каждого заклинания.`);
+    renderResult(s.res, { label: s.label, note: notes.join(' ') || null });
   }
 
   function peekTable(name) {
-    if (!SQL) return;
-    renderResult(runSql(`SELECT * FROM ${name}`), { label: `таблица ${name}` });
+    if (!judge) return;
+    renderResult(judge.table(room(), name), { label: `таблица ${name}` });
   }
 
   function hurtPlayer(dmg, why) {
@@ -412,43 +340,48 @@
     p.hp = Math.max(0, p.hp - dmg);
     progress().wounds++;
     floater('−' + dmg, 'hurt');
-    flashArena();
+    pulse($('arena'), 'flash');
     log('hurt', `${why} −${dmg} HP.`);
     if (p.hp === 0) defeat();
   }
 
   function attack() {
+    if (!judge || modalOpen()) return;
     inAttack = true;
     turnLogged = false;
     try { attackTurn(); } finally { inAttack = false; turnLogged = false; }
   }
 
+  function verdictEl(ev) {
+    const v = document.createElement('div');
+    v.className = 'verdict ' + (ev.exact ? 'ok' : 'bad');
+    const notes = ev.notes.length ? `<ul>${ev.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : '';
+    const plan = ev.planText != null ? `<div class="plan"><span>План запроса:</span><pre>${esc(ev.planText)}</pre></div>` : '';
+    v.innerHTML = (ev.exact
+      ? '<b>Точное попадание. Заклинание сработало как надо.</b>'
+      : `<b>Удар не смертельный. Заклинание близко к цели на ${Math.round(ev.sim * 100)}%.</b>`) + notes + plan;
+    return v;
+  }
+
   function attackTurn() {
-    if (!SQL) return;
     const r = room();
     const st = progress();
     const sql = currentSql().trim();
     if (!sql) return;
 
-    let res;
-    try {
-      res = runSql(sql);
-    } catch (e) {
-      renderResult({ error: e.message });
-      if (st.cleared) return;
+    const ev = judge.evaluate(r, sql);
+    if (ev.error) {
+      renderResult(null, { error: ev.error });
       Spell.fizzle();
+      if (st.cleared) return;
       hurtPlayer(Math.ceil(r.attack / 2), `Заклинание рассеялось (ошибка SQL). ${r.monster} пользуется моментом:`);
       return finishTurn();
     }
 
-    const ev = evaluate(res, expected[r.id], r.ordered);
     if (ev.exact) Spell.cast(); else Spell.fizzle();
-    const verdict = document.createElement('div');
-    verdict.className = 'verdict ' + (ev.exact ? 'ok' : 'bad');
-    verdict.innerHTML = ev.exact
-      ? '<b>Точное попадание. Результат совпал с эталоном.</b>'
-      : `<b>Удар не смертельный. Результат близок к ответу на ${Math.round(ev.sim * 100)}%.</b><ul>${ev.notes.map((n) => `<li>${n}</li>`).join('')}</ul>`;
-    renderResult(res, { verdict, label: 'атака' });
+    const d = ev.display || {};
+    const extra = d.changes ? `Изменено строк: ${d.changes}.` : null;
+    renderResult(d.res, { verdict: verdictEl(ev), label: d.label, note: d.res ? null : extra });
 
     if (st.cleared) {
       log('info', ev.exact ? 'Тренировочный удар точен.' : 'Тренировочный удар мимо.');
@@ -459,10 +392,10 @@
       const dmg = Math.round(r.maxHp * (ev.sim - st.best));
       st.best = ev.sim;
       floater('−' + dmg, 'dmg');
-      shakeMonster();
-      log('dmg', `Ты наносишь ${dmg} урона. ` + (ev.exact ? '' : r.taunts[Math.floor(Math.random() * r.taunts.length)]));
+      pulse($('monster-sprite'), 'hit');
+      log('dmg', `Ты наносишь ${dmg} урона.` + (ev.exact ? '' : ' ' + r.taunts[Math.floor(Math.random() * r.taunts.length)]));
     } else if (!ev.exact) {
-      log('info', 'Удар соскользнул: этот запрос не ближе к ответу, чем прошлый.');
+      log('info', 'Удар соскользнул: это заклинание не ближе к цели, чем прошлое.');
     }
 
     if (ev.exact) return victory();
@@ -480,8 +413,8 @@
     const st = progress();
     if (i !== st.hints) return;
     st.hints++;
-    // в зачищенной комнате подсказки ничего не стоят: награда уже получена
-    if (!st.cleared) log('info', `Сломана печать свитка ${'I'.repeat(i + 1)}. Добыча теперь ${Math.round(D.hintMultipliers[st.hints] * 100)}%.`);
+    // в зачищенном зале подсказки ничего не стоят: награда уже получена
+    if (!st.cleared) log('info', `Сломана печать свитка ${'I'.repeat(i + 1)}. Золото за зал теперь ${Math.round(D.hintMultipliers[st.hints] * 100)}%.`);
     save();
     renderHints();
     renderTask();
@@ -492,54 +425,52 @@
     const st = progress();
     const p = state.player;
     const rw = rewardFor(r, st);
-    const flawless = st.wounds === 0;
-    const bonus = flawless ? Math.round(rw.gold * 0.25) : 0;
-    const golden = flawless && st.hints === 0;
+    const bonus = st.wounds === 0 ? Math.round(rw.gold * 0.25) : 0;
+    const oldRank = rank();
 
     st.cleared = true;
     st.best = 1;
     st.stars = rw.stars;
-    st.golden = golden;
     p.gold += rw.gold + bonus;
     p.xp += rw.xp;
-    const heal = Math.min(30, p.maxHp - p.hp);
-    p.hp += heal;
-    const levels = [];
-    while (p.xp >= xpToNext(p.level)) {
-      p.xp -= xpToNext(p.level);
-      p.level++;
-      p.maxHp += 10;
-      p.hp = p.maxHp;
-      levels.push(p.level);
+    const newRank = rank() !== oldRank ? rank() : null;
+    let heal;
+    if (newRank) {
+      heal = maxHp() - p.hp;
+      p.hp = maxHp();
+    } else {
+      heal = Math.min(Math.round(maxHp() * 0.35), maxHp() - p.hp);
+      p.hp += heal;
     }
-    const idx = D.rooms.indexOf(r);
-    const next = D.rooms[idx + 1];
+    const next = D.rooms[r.index + 1];
     if (next) state.rooms[next.id].unlocked = true;
 
     log('win', `${r.monster} повержен! +${rw.gold + bonus} золота, +${rw.xp} XP.`);
-    const oldRank = rankOf(p.level - levels.length);
-    levels.forEach((l) => log('win', `Новый уровень: ${l}. Максимум здоровья +10.`));
-    const newRank = levels.length && rankOf(p.level) !== oldRank ? rankOf(p.level) : null;
-    if (newRank) log('win', `Ты достиг звания: ${newRank}.`);
+    if (newRank) log('win', `Ты достиг звания: ${newRank.name}.`);
+    viewAct = null;
     save();
     renderAll();
 
     const items = [
-      `<li><span>Золото (${Math.round(rw.mult * 100)}%)</span><span>+${rw.gold}</span></li>`,
+      `<li><span>Золото${rw.mult < 1 ? ` (${Math.round(rw.mult * 100)}%)` : ''}</span><span>+${rw.gold}</span></li>`,
       bonus ? `<li><span>Без единой царапины</span><span>+${bonus}</span></li>` : `<li class="minus"><span>Получено ран</span><span>${st.wounds}</span></li>`,
       `<li><span>Опыт</span><span>+${rw.xp} XP</span></li>`,
-      heal ? `<li><span>Отдых у костра</span><span>+${heal} HP</span></li>` : '',
-      levels.length ? `<li><span>Новый уровень</span><span>${p.level}</span></li>` : '',
-      newRank ? `<li><span>Новое звание</span><span>${newRank}</span></li>` : '',
-      `<li><span>Трофей: ${r.trophy.name}${golden ? ' (золотой)' : ''}</span><span>${r.trophy.icon}</span></li>`,
+      heal ? `<li><span>${newRank ? 'Новое звание исцеляет полностью' : 'Отдых у костра'}</span><span>+${heal} HP</span></li>` : '',
+      newRank ? `<li class="rank-up"><span>Новое звание</span><span>${newRank.name}</span></li>` : '',
+      newRank ? `<li><span>Максимум здоровья</span><span>${newRank.maxHp} HP</span></li>` : '',
     ].join('');
+    const finale = !next
+      ? '<p>Дракон пал. Подземелье зачищено, и Хроники вписывают твоё имя рядом со званием Архимага.</p>'
+      : '';
+    const nextAct = next && actOf(next) !== actOf(r) ? `<p class="act-open">Открыт ${esc(D.acts[actOf(next)].name)}</p>` : '';
     showModal(`
-      <div class="big">${r.trophy.icon}</div>
-      <h3>${r.monster} повержен</h3>
-      <div class="stars" style="color:var(--torch);font-size:1.4rem;letter-spacing:.15em">${starStr(rw.stars)}</div>
+      <div class="big">${newRank ? '🎓' : r.sprite}</div>
+      <h3>${esc(r.monster)} повержен</h3>
+      <div class="modal-stars">${starStr(rw.stars)}</div>
       <ul class="loot">${items}</ul>
-      ${next ? `<button class="btn attack" id="modal-next" type="button">Дальше: ${next.monster}</button>` : '<p>Дракон пал. Подземелье зачищено, а ты прошёл путь от ученика до мастера заклинаний.</p>'}
-      <button class="btn" id="modal-close" type="button">Остаться в комнате</button>
+      ${finale}${nextAct}
+      ${next ? `<button class="btn attack" id="modal-next" type="button">Дальше: ${esc(next.monster)}</button>` : ''}
+      <button class="btn" id="modal-close" type="button">Остаться в зале</button>
     `, false, () => next && switchRoom(next.id));
   }
 
@@ -549,7 +480,7 @@
     const p = state.player;
     const lost = Math.floor(p.gold * 0.25);
     p.gold -= lost;
-    p.hp = p.maxHp;
+    p.hp = maxHp();
     st.best = 0;
     log('hurt', `Ты пал в бою. ${r.monster} восстановил силы. Потеряно ${lost} золота.`);
     save();
@@ -557,13 +488,13 @@
     showModal(`
       <div class="big">🪦</div>
       <h3>Ты пал</h3>
-      <p>${r.monster} оказался сильнее. Ты приходишь в себя в лагере у входа.</p>
+      <p>${esc(r.monster)} оказался сильнее. Ты приходишь в себя в лагере у входа.</p>
       <ul class="loot">
         <li class="minus"><span>Потеряно золота</span><span>−${lost}</span></li>
-        <li><span>Здоровье восстановлено</span><span>${p.maxHp} HP</span></li>
+        <li><span>Здоровье восстановлено</span><span>${p.hp} HP</span></li>
         <li><span>Открытые свитки остаются с тобой</span><span>${st.hints}</span></li>
       </ul>
-      <p style="color:var(--dust);margin:0">Совет: «Разведать» бесплатно. Проверь запрос перед атакой.</p>
+      <p class="modal-tip">Совет: «Разведать» бесплатно. Проверь заклинание перед атакой.</p>
       <button class="btn attack" id="modal-close" type="button">Вернуться в бой</button>
     `, true);
   }
@@ -582,9 +513,10 @@
   function switchRoom(id) {
     if (!state.rooms[id] || !state.rooms[id].unlocked) return;
     state.current = id;
+    viewAct = null;
     const r = room();
     $('sql').value = '';
-    Spell.update($('sql').value);
+    Spell.update('');
     if (progress().cleared) log('info', 'Этот зал уже зачищен. Здесь можно тренироваться без риска.');
     else log('info', `Ты входишь: ${r.floor}. Перед тобой ${r.monster}.`);
     save();
@@ -603,8 +535,9 @@
     btn.dataset.armed = '';
     btn.textContent = 'Начать заново';
     state = freshState();
+    viewAct = null;
     $('sql').value = '';
-    Spell.update($('sql').value);
+    Spell.update('');
     log('info', `Ты спускаешься в подземелье. Перед тобой ${room().monster}.`);
     save();
     renderAll();
@@ -628,33 +561,30 @@
         ta.setRangeText('  ', s, ta.selectionEnd, 'end');
       }
     });
-    ta.addEventListener('input', () => {
-      Spell.update(ta.value);
-    });
+    ta.addEventListener('input', () => Spell.update(ta.value));
   }
 
   async function start() {
     bind();
-    const r = room();
     $('sql').value = '';
     Spell.mount($('pentagram'));
-    Spell.update($('sql').value);
-    log('info', `Ты спускаешься в подземелье. Перед тобой ${r.monster}.`);
+    Spell.update('');
+    const r = room();
+    log('info', progress().cleared ? 'Этот зал уже зачищен. Здесь можно тренироваться без риска.' : `Ты стоишь в зале ${r.index + 1}. Перед тобой ${r.monster}.`);
     renderAll();
     try {
-      SQL = await window.initSqlJs();
+      const SQL = await window.initSqlJs();
+      judge = window.Judge.create(SQL, D);
       const db = new SQL.Database();
       db.run(D.schemaSql);
-      pristine = db.export();
-      Spell.init($('pentagram'), new SQL.Database(pristine));
-      Spell.update($('sql').value);
+      Spell.init($('pentagram'), new SQL.Database(db.export()));
       db.close();
-      D.rooms.forEach((rm) => { expected[rm.id] = runSql(rm.solution); });
+      Spell.update('');
       $('run-btn').disabled = false;
       $('attack-btn').disabled = false;
       scout();
     } catch (e) {
-      renderResult({ error: 'Не удалось загрузить SQLite: ' + e.message });
+      renderResult(null, { error: 'Не удалось загрузить SQLite: ' + e.message });
     }
   }
 

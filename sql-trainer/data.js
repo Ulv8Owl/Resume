@@ -96,21 +96,22 @@ window.DUNGEON = {
 
   // Раскладка ER-схемы (координаты в viewBox схемы).
   diagram: {
-    width: 700,
-    height: 292,
+    width: 724,
+    height: 290,
     tables: {
-      guilds:    { x: 8,   y: 8,   cols: [['id', 'INT', 'pk'], ['name', 'TEXT'], ['city', 'TEXT']] },
-      artifacts: { x: 8,   y: 150, cols: [['id', 'INT', 'pk'], ['name', 'TEXT'], ['rarity', 'TEXT'], ['power', 'INT'], ['owner_id', 'INT', 'fk']] },
-      heroes:    { x: 250, y: 8,   cols: [['id', 'INT', 'pk'], ['name', 'TEXT'], ['class', 'TEXT'], ['level', 'INT'], ['gold', 'INT'], ['guild_id', 'INT', 'fk'], ['mentor_id', 'INT', 'fk']] },
+      artifacts: { x: 8,   y: 8,   cols: [['id', 'INT', 'pk'], ['name', 'TEXT'], ['rarity', 'TEXT'], ['power', 'INT'], ['owner_id', 'INT', 'fk']] },
+      guilds:    { x: 8,   y: 160, cols: [['id', 'INT', 'pk'], ['name', 'TEXT'], ['city', 'TEXT']] },
+      heroes:    { x: 250, y: 28,  cols: [['id', 'INT', 'pk'], ['name', 'TEXT'], ['class', 'TEXT'], ['level', 'INT'], ['gold', 'INT'], ['guild_id', 'INT', 'fk'], ['mentor_id', 'INT', 'fk']] },
       quest_log: { x: 492, y: 8,   cols: [['id', 'INT', 'pk'], ['hero_id', 'INT', 'fk'], ['quest_id', 'INT', 'fk'], ['completed_on', 'TEXT']] },
       quests:    { x: 492, y: 150, cols: [['id', 'INT', 'pk'], ['title', 'TEXT'], ['difficulty', 'INT'], ['reward', 'INT'], ['region', 'TEXT']] },
     },
+    // from/to: [таблица, колонка, сторона]; lane — x вертикального коридора связи
     links: [
-      ['heroes', 'guild_id', 'guilds', 'id'],
-      ['heroes', 'mentor_id', 'heroes', 'id'],
-      ['artifacts', 'owner_id', 'heroes', 'id'],
-      ['quest_log', 'hero_id', 'heroes', 'id'],
-      ['quest_log', 'quest_id', 'quests', 'id'],
+      { from: ['artifacts', 'owner_id', 'right'], to: ['heroes', 'id', 'left'], lane: 229 },
+      { from: ['heroes', 'guild_id', 'left'], to: ['guilds', 'id', 'right'], lane: 229 },
+      { from: ['quest_log', 'hero_id', 'left'], to: ['heroes', 'id', 'right'], lane: 471 },
+      { from: ['heroes', 'mentor_id', 'right'], to: ['heroes', 'id', 'right'], lane: 471 },
+      { from: ['quest_log', 'quest_id', 'right'], to: ['quests', 'id', 'right'], lane: 710 },
     ],
   },
 

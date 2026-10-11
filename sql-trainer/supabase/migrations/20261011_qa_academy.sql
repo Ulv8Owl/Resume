@@ -1,8 +1,20 @@
--- Аккаунты Академии QA переезжают в Supabase Auth.
+-- Аккаунты Академии QA — пользователи Supabase Auth.
 -- Регистрация по-прежнему только по никнейму и паролю: адрес почты для Auth генерируется из id пользователя
 -- и нигде не показывается, а пользователь создаётся уже подтверждённым — писем и подтверждений нет.
 -- Прогресс хранится в qa_progress и доступен только своему владельцу (RLS по auth.uid()).
--- Миграция уже применена к проекту; повторный запуск безопасен и ничего не меняет.
+-- Это единственная миграция Академии: она описывает всю схему целиком.
+-- Её можно запускать сколько угодно раз — она ничего не удаляет и не ломает уже созданное,
+-- а если функции в базе были заменены чем-то старым, возвращает правильные версии.
+
+-- Правила никнейма: 2–32 символа, латиница, кириллица, цифры, пробел, «-» и «_».
+create or replace function public.qa_valid_name(p_name text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select p_name is not null and btrim(p_name) ~ '^[A-Za-zА-Яа-яЁё0-9_ -]{2,32}$';
+$$;
 
 create table if not exists public.qa_progress (
   user_id      uuid primary key references auth.users(id) on delete cascade,
@@ -145,5 +157,5 @@ begin
   end if;
 end $$;
 revoke all on function public.qa_create_auth_user(uuid, text, text, timestamptz), public.qa_auth_email_for(uuid) from public, anon, authenticated;
-revoke all on function public.qa_register(text, text), public.qa_login_email(text), public.qa_name_available(text) from public;
-grant execute on function public.qa_register(text, text), public.qa_login_email(text), public.qa_name_available(text) to anon, authenticated;
+revoke all on function public.qa_valid_name(text), public.qa_register(text, text), public.qa_login_email(text), public.qa_name_available(text) from public;
+grant execute on function public.qa_valid_name(text), public.qa_register(text, text), public.qa_login_email(text), public.qa_name_available(text) to anon, authenticated;

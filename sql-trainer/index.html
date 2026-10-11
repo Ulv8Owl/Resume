@@ -3,105 +3,142 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Подземелье запросов</title>
+<title>Академия QA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+Runic&family=Pixelify+Sans:wght@400;500&family=Rubik:ital,wght@0,400;0,500;1,400&display=swap">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="academy.css">
 </head>
 <body>
 <div class="shell">
   <header class="hud">
-    <h1 class="brand">Подземелье запросов<small>SQL-тренажёр: запросы — твои заклинания, монстры — настоящие</small></h1>
+    <button class="brand" type="button" data-go="home">Академия QA<small>тренажёр к собеседованию тестировщика</small></button>
     <div class="stats">
-      <div class="stat">
-        <div class="stat-label">Здоровье <b id="hp-text">100 / 100</b></div>
-        <div class="bar hp"><i id="hp-bar"></i></div>
-      </div>
+      <img id="hud-avatar" class="hud-avatar" src="Avatars/1.webp" alt="" width="44" height="44">
       <div class="stat stat-rank">
         <div class="stat-label">Звание <b id="rank-text">Ученик</b></div>
         <div class="bar xp"><i id="xp-bar"></i></div>
         <div class="stat-sub" id="xp-text"></div>
       </div>
+      <div class="stat" id="hud-hp" hidden>
+        <div class="stat-label">Здоровье <b id="hp-text">100 / 100</b></div>
+        <div class="bar hp"><i id="hp-bar"></i></div>
+      </div>
       <span class="chip gold" title="Золото">🪙 <b id="gold-text">0</b></span>
-      <span class="chip" title="Пройдено залов">🚪 <b id="cleared-text">0 / 90</b></span>
-      <button class="ghost-btn" id="reset-btn" type="button">Начать заново</button>
+      <span class="chip sync guest" id="sync-chip">Гость</span>
     </div>
   </header>
 
+  <section class="screen home" data-screen="home">
+    <div class="home-hero panel">
+      <img id="home-avatar" class="home-avatar" src="Avatars/1.webp" alt="" width="220" height="220">
+      <div class="home-intro">
+        <p class="eyebrow">Твоё звание</p>
+        <h2 class="home-rank" id="home-rank">Ученик</h2>
+        <p class="home-greeting" id="home-greeting"></p>
+        <div class="bar xp home-bar"><i id="home-xp-bar"></i></div>
+        <p class="home-next" id="home-next"></p>
+        <ol class="ladder" id="ladder" aria-label="Звания"></ol>
+      </div>
+    </div>
+    <div class="home-grid">
+      <div>
+        <p class="eyebrow home-label">Выбери режим</p>
+        <div class="modes" id="modes"></div>
+      </div>
+      <aside class="panel account" id="account"></aside>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="sql" hidden>
+    <div class="sim-head">
+      <button class="ghost-btn" type="button" data-go="home">← К выбору режима</button>
+      <h2 class="sim-title"><span aria-hidden="true">🐉</span> SQL · Подземелье запросов</h2>
+      <span class="chip" title="Пройдено залов">🚪 <b id="cleared-text">0 / 90</b></span>
+    </div>
   <nav class="map" aria-label="Карта подземелья">
-    <div class="acts" id="acts"></div>
-    <p class="act-topic" id="act-topic"></p>
-    <div class="tiles" id="tiles"></div>
-  </nav>
-
-  <main class="board">
-    <div class="col">
-      <section class="panel arena m1" id="arena" aria-live="polite">
-        <div class="monster" id="monster-sprite">💀</div>
-        <p class="monster-floor" id="monster-floor"></p>
-        <h2 class="monster-name" id="monster-name">…</h2>
-        <div class="monster-hp">
-          <div class="bar hp"><i id="monster-bar"></i></div>
-          <div class="monster-meta" id="monster-meta"></div>
-        </div>
-        <p class="intro" id="monster-intro"></p>
-        <p class="arena-line" id="arena-line"></p>
-      </section>
-
-      <section class="panel task m2">
-        <p class="eyebrow">Задание</p>
-        <p id="task-text"></p>
-        <div class="task-spell" id="task-spell"></div>
-        <div class="task-tables" id="task-tables"></div>
-        <div class="reward" id="reward"></div>
-      </section>
-
-      <section class="panel m5">
-        <div class="results-head">
-          <p class="eyebrow">Результат</p>
-          <span class="results-meta" id="results-meta"></span>
-        </div>
-        <div id="results"><p class="loading">Загружаю SQLite…</p></div>
-      </section>
-    </div>
-
-    <div class="col">
-      <section class="panel m3">
-        <p class="eyebrow">Схема базы данных</p>
-        <div class="schema-wrap"><svg id="schema" role="img" aria-label="Схема таблиц artifacts, guilds, heroes, ledger, quest_log, quests"></svg></div>
-        <p class="schema-note">Нажми на таблицу, чтобы увидеть её строки. Подсвечены таблицы, нужные для задания.</p>
-      </section>
-
-      <section class="panel editor m4">
-        <div class="desk">
-          <div class="desk-book">
-            <p class="eyebrow">Книга заклинаний</p>
-            <label for="sql" hidden>SQL-запрос</label>
-            <textarea id="sql" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Начертай заклинание, например:&#10;SELECT … FROM …"></textarea>
-            <div class="actions">
-              <button class="btn" id="run-btn" type="button" disabled>Разведать</button>
-              <button class="btn attack" id="attack-btn" type="button" disabled>⚔ Атаковать</button>
+      <div class="acts" id="acts"></div>
+      <p class="act-topic" id="act-topic"></p>
+      <div class="tiles" id="tiles"></div>
+    </nav>
+  
+    <main class="board">
+      <div class="col">
+        <section class="panel arena m1" id="arena" aria-live="polite">
+          <div class="monster" id="monster-sprite">💀</div>
+          <p class="monster-floor" id="monster-floor"></p>
+          <h2 class="monster-name" id="monster-name">…</h2>
+          <div class="monster-hp">
+            <div class="bar hp"><i id="monster-bar"></i></div>
+            <div class="monster-meta" id="monster-meta"></div>
+          </div>
+          <p class="intro" id="monster-intro"></p>
+          <p class="arena-line" id="arena-line"></p>
+        </section>
+  
+        <section class="panel task m2">
+          <p class="eyebrow">Задание</p>
+          <p id="task-text"></p>
+          <div class="task-spell" id="task-spell"></div>
+          <div class="task-tables" id="task-tables"></div>
+          <div class="reward" id="reward"></div>
+        </section>
+  
+        <section class="panel m5">
+          <div class="results-head">
+            <p class="eyebrow">Результат</p>
+            <span class="results-meta" id="results-meta"></span>
+          </div>
+          <div id="results"><p class="loading">Загружаю SQLite…</p></div>
+        </section>
+      </div>
+  
+      <div class="col">
+        <section class="panel m3">
+          <p class="eyebrow">Схема базы данных</p>
+          <div class="schema-wrap"><svg id="schema" role="img" aria-label="Схема таблиц artifacts, guilds, heroes, ledger, quest_log, quests"></svg></div>
+          <p class="schema-note">Нажми на таблицу, чтобы увидеть её строки. Подсвечены таблицы, нужные для задания.</p>
+        </section>
+  
+        <section class="panel editor m4">
+          <div class="desk">
+            <div class="desk-book">
+              <p class="eyebrow">Книга заклинаний</p>
+              <label for="sql" hidden>SQL-запрос</label>
+              <textarea id="sql" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Начертай заклинание, например:&#10;SELECT … FROM …"></textarea>
+              <div class="actions">
+                <button class="btn" id="run-btn" type="button" disabled>Разведать</button>
+                <button class="btn attack" id="attack-btn" type="button" disabled>⚔ Атаковать</button>
+              </div>
+              <p class="kbd"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> разведка · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> атака</p>
+              <div class="scrolls">
+                <p class="eyebrow">Свитки подсказок <span id="hints-count"></span></p>
+                <div class="hints" id="hints"></div>
+              </div>
             </div>
-            <p class="kbd"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> разведка · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> атака</p>
-            <div class="scrolls">
-              <p class="eyebrow">Свитки подсказок <span id="hints-count"></span></p>
-              <div class="hints" id="hints"></div>
+            <div class="desk-circle">
+              <p class="eyebrow">Пентаграмма</p>
+              <div class="pentagram" id="pentagram"></div>
             </div>
           </div>
-          <div class="desk-circle">
-            <p class="eyebrow">Пентаграмма</p>
-            <div class="pentagram" id="pentagram"></div>
-          </div>
-        </div>
-      </section>
-    </div>
-  </main>
+        </section>
+      </div>
+    </main>
+  </section>
+
+  <section class="screen" data-screen="theory" hidden></section>
+  <section class="screen" data-screen="swagger" hidden></section>
+  <section class="screen" data-screen="postman" hidden></section>
+  <section class="screen" data-screen="charles" hidden></section>
+  <section class="screen" data-screen="devtools" hidden></section>
 </div>
 
 <div class="overlay" id="overlay" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-asm.js"></script>
+<script src="progression.js"></script>
+<script src="core.js"></script>
 <script src="data.js"></script>
 <script src="rooms-act1.js"></script>
 <script src="rooms-act2.js"></script>
@@ -109,5 +146,14 @@
 <script src="judge.js"></script>
 <script src="spell.js"></script>
 <script src="app.js"></script>
+<script src="theory-data.js"></script>
+<script src="theory.js"></script>
+<script src="sims/api-mock.js"></script>
+<script src="sims/quest.js"></script>
+<script src="sims/swagger.js"></script>
+<script src="sims/postman.js"></script>
+<script src="sims/charles.js"></script>
+<script src="sims/devtools.js"></script>
+<script>window.Core.start();</script>
 </body>
 </html>

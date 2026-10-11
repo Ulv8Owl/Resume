@@ -3,47 +3,29 @@
 
   const D = window.DUNGEON;
   D.finalize();
-  const STORE_KEY = 'sql-dungeon-v3';
+  const Core = window.Core;
   const $ = (id) => document.getElementById(id);
 
-  // ---------- состояние ----------
+  // ---------- состояние: часть общего состояния мага ----------
 
-  function freshState() {
-    const rooms = {};
+  function S() {
+    const st = Core.state;
+    if (!st.sql || !st.sql.rooms) st.sql = { rooms: {}, current: D.rooms[0].id };
     D.rooms.forEach((r, i) => {
-      rooms[r.id] = { unlocked: i === 0, cleared: false, stars: 0, hints: 0, best: 0, wounds: 0 };
+      if (!st.sql.rooms[r.id]) st.sql.rooms[r.id] = { unlocked: i === 0, cleared: false, stars: 0, hints: 0, best: 0, wounds: 0 };
     });
-    return { player: { xp: 0, hp: D.ranks[0].maxHp, gold: 0 }, rooms, current: D.rooms[0].id };
+    if (!st.sql.rooms[st.sql.current]) st.sql.current = D.rooms[0].id;
+    return st.sql;
   }
+  const save = () => Core.save();
 
-  function load() {
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return freshState();
-      const s = JSON.parse(raw);
-      const base = freshState();
-      s.rooms = Object.assign(base.rooms, s.rooms || {});
-      const st = Object.assign(base, s);
-      if (!st.rooms[st.current]) st.current = D.rooms[0].id;
-      return st;
-    } catch (e) {
-      return freshState();
-    }
-  }
-
-  function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* без сохранения тоже играем */ }
-  }
-
-  let state = load();
   let judge = null;
   let viewAct = null;
 
-  const room = () => D.rooms.find((r) => r.id === state.current);
-  const progress = () => state.rooms[state.current];
-  const rank = () => D.rankFor(state.player.xp);
-  const nextRank = () => D.ranks[D.ranks.indexOf(rank()) + 1] || null;
-  const maxHp = () => rank().maxHp;
+  const room = () => D.rooms.find((r) => r.id === S().current);
+  const progress = () => S().rooms[S().current];
+  const maxHp = () => Core.maxHp();
+  const attackOf = (r) => D.attackFor(r, maxHp());
   const actOf = (r) => D.acts.findIndex((a) => r.index >= a.from && r.index < a.to);
 
   // ---------- рендер ----------
@@ -53,17 +35,8 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function renderHud() {
-    const p = state.player;
-    p.hp = Math.min(p.hp, maxHp());
-    $('hp-text').textContent = `${p.hp} / ${maxHp()}`;
-    setBar($('hp-bar'), p.hp / maxHp());
-    const rk = rank();
-    const nx = nextRank();
-    $('rank-text').textContent = rk.name;
-    $('xp-text').textContent = nx ? `${p.xp - rk.xp} / ${nx.xp - rk.xp} XP до звания «${nx.name}»` : 'Высшее звание';
-    setBar($('xp-bar'), nx ? (p.xp - rk.xp) / (nx.xp - rk.xp) : 1);
-    $('gold-text').textContent = p.gold;
-    $('cleared-text').textContent = `${D.rooms.filter((r) => state.rooms[r.id].cleared).length} / ${D.rooms.length}`;
+    Core.renderHud();
+    $('cleared-text').textContent = `${D.rooms.filter((r) => S().rooms[r.id].cleared).length} / ${D.rooms.length}`;
   }
 
   function renderMap() {
@@ -71,10 +44,10 @@
     const acts = $('acts');
     acts.innerHTML = '';
     D.acts.forEach((a, i) => {
-      const done = D.rooms.slice(a.from, a.to).filter((r) => state.rooms[r.id].cleared).length;
+      const done = D.rooms.slice(a.from, a.to).filter((r) => S().rooms[r.id].cleared).length;
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'act-tab' + (i === viewAct ? ' active' : '') + (state.rooms[D.rooms[a.from].id].unlocked ? '' : ' sealed');
+      b.className = 'act-tab' + (i === viewAct ? ' active' : '') + (S().rooms[D.rooms[a.from].id].unlocked ? '' : ' sealed');
       b.setAttribute('aria-pressed', i === viewAct ? 'true' : 'false');
       b.innerHTML = `<span class="act-name">${a.name}</span><span class="act-progress">${done} / ${a.to - a.from}</span>`;
       b.addEventListener('click', () => { viewAct = i; renderMap(); });
@@ -85,10 +58,10 @@
     const tiles = $('tiles');
     tiles.innerHTML = '';
     D.rooms.slice(D.acts[viewAct].from, D.acts[viewAct].to).forEach((r) => {
-      const st = state.rooms[r.id];
+      const st = S().rooms[r.id];
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'tile' + (r.id === state.current ? ' current' : '') + (st.cleared ? ' cleared' : '') + (st.unlocked ? '' : ' locked') + (r.boss ? ' boss' : '');
+      b.className = 'tile' + (r.id === S().current ? ' current' : '') + (st.cleared ? ' cleared' : '') + (st.unlocked ? '' : ' locked') + (r.boss ? ' boss' : '');
       b.disabled = !st.unlocked;
       b.title = st.unlocked ? `${r.floor}: ${r.monster} · ${r.topic}` : `${r.floor}: закрыт`;
       b.innerHTML = `<span class="tile-sprite">${st.unlocked ? r.sprite : '🔒'}</span><span class="tile-num">${r.index + 1}</span>` +
@@ -117,7 +90,7 @@
     setBar($('monster-bar'), hp / r.maxHp);
     $('monster-meta').textContent = st.cleared
       ? 'Повержен. Можно потренироваться ещё раз, но без добычи.'
-      : `HP ${hp} / ${r.maxHp} · бьёт на ${r.attack} за промах`;
+      : `HP ${hp} / ${r.maxHp} · бьёт на ${attackOf(r)} за промах`;
     $('monster-intro').textContent = r.intro;
   }
 
@@ -314,7 +287,7 @@
   // ---------- действия ----------
 
   const currentSql = () => $('sql').value;
-  const modalOpen = () => !$('overlay').hidden;
+  const modalOpen = () => Core.modalOpen();
 
   function scout() {
     if (!judge) return;
@@ -336,8 +309,8 @@
   }
 
   function hurtPlayer(dmg, why) {
-    const p = state.player;
-    p.hp = Math.max(0, p.hp - dmg);
+    const p = Core.state;
+    p.hp = Math.max(0, Math.min(p.hp, maxHp()) - dmg);
     progress().wounds++;
     floater('−' + dmg, 'hurt');
     pulse($('arena'), 'flash');
@@ -374,7 +347,7 @@
       renderResult(null, { error: ev.error });
       Spell.fizzle();
       if (st.cleared) return;
-      hurtPlayer(Math.ceil(r.attack / 2), `Заклинание рассеялось (ошибка SQL). ${r.monster} пользуется моментом:`);
+      hurtPlayer(Math.ceil(attackOf(r) / 2), `Заклинание рассеялось (ошибка SQL). ${r.monster} пользуется моментом:`);
       return finishTurn();
     }
 
@@ -399,7 +372,7 @@
     }
 
     if (ev.exact) return victory();
-    hurtPlayer(r.attack, `${r.monster} контратакует:`);
+    hurtPlayer(attackOf(r), `${r.monster} контратакует:`);
     finishTurn();
   }
 
@@ -423,30 +396,27 @@
   function victory() {
     const r = room();
     const st = progress();
-    const p = state.player;
+    const p = Core.state;
     const rw = rewardFor(r, st);
     const bonus = st.wounds === 0 ? Math.round(rw.gold * 0.25) : 0;
-    const oldRank = rank();
+    const before = Core.rank();
 
     st.cleared = true;
     st.best = 1;
     st.stars = rw.stars;
     p.gold += rw.gold + bonus;
-    p.xp += rw.xp;
-    const newRank = rank() !== oldRank ? rank() : null;
-    let heal;
-    if (newRank) {
-      heal = maxHp() - p.hp;
-      p.hp = maxHp();
-    } else {
+    // опыт не копится в переменной: он считается из пройденного, поэтому зал уже учтён
+    const up = Core.rankUp(before);
+    let heal = 0;
+    if (!up.rank) {
       heal = Math.min(Math.round(maxHp() * 0.35), maxHp() - p.hp);
       p.hp += heal;
     }
     const next = D.rooms[r.index + 1];
-    if (next) state.rooms[next.id].unlocked = true;
+    if (next) S().rooms[next.id].unlocked = true;
 
-    log('win', `${r.monster} повержен! +${rw.gold + bonus} золота, +${rw.xp} XP.`);
-    if (newRank) log('win', `Ты достиг звания: ${newRank.name}.`);
+    log('win', `Победа в зале ${r.index + 1}! +${rw.gold + bonus} золота, +${rw.xp} XP.`);
+    if (up.rank) log('win', `Ты достиг звания: ${up.rank.name}.`);
     viewAct = null;
     save();
     renderAll();
@@ -455,29 +425,28 @@
       `<li><span>Золото${rw.mult < 1 ? ` (${Math.round(rw.mult * 100)}%)` : ''}</span><span>+${rw.gold}</span></li>`,
       bonus ? `<li><span>Без единой царапины</span><span>+${bonus}</span></li>` : `<li class="minus"><span>Получено ран</span><span>${st.wounds}</span></li>`,
       `<li><span>Опыт</span><span>+${rw.xp} XP</span></li>`,
-      heal ? `<li><span>${newRank ? 'Новое звание исцеляет полностью' : 'Отдых у костра'}</span><span>+${heal} HP</span></li>` : '',
-      newRank ? `<li class="rank-up"><span>Новое звание</span><span>${newRank.name}</span></li>` : '',
-      newRank ? `<li><span>Максимум здоровья</span><span>${newRank.maxHp} HP</span></li>` : '',
-    ].join('');
+      heal ? `<li><span>Отдых у костра</span><span>+${heal} HP</span></li>` : '',
+    ].concat(up.lines).join('');
     const finale = !next
-      ? '<p>Дракон пал. Подземелье зачищено, и Хроники вписывают твоё имя рядом со званием Архимага.</p>'
+      ? '<p>Дракон пал. Подземелье запросов зачищено.</p>'
       : '';
     const nextAct = next && actOf(next) !== actOf(r) ? `<p class="act-open">Открыт ${esc(D.acts[actOf(next)].name)}</p>` : '';
-    showModal(`
-      <div class="big">${newRank ? '🎓' : r.sprite}</div>
-      <h3>${esc(r.monster)} повержен</h3>
+    Core.modal(`
+      <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : r.sprite}</div>
+      <h3>Победа!</h3>
+      <p class="modal-tip">${esc(r.monster)} больше не стоит у тебя на пути.</p>
       <div class="modal-stars">${starStr(rw.stars)}</div>
       <ul class="loot">${items}</ul>
       ${finale}${nextAct}
       ${next ? `<button class="btn attack" id="modal-next" type="button">Дальше: ${esc(next.monster)}</button>` : ''}
       <button class="btn" id="modal-close" type="button">Остаться в зале</button>
-    `, false, () => next && switchRoom(next.id));
+    `, { onNext: () => next && switchRoom(next.id), onClose: () => $('sql').focus() });
   }
 
   function defeat() {
     const r = room();
     const st = progress();
-    const p = state.player;
+    const p = Core.state;
     const lost = Math.floor(p.gold * 0.25);
     p.gold -= lost;
     p.hp = maxHp();
@@ -485,7 +454,7 @@
     log('hurt', `Ты пал в бою. ${r.monster} восстановил силы. Потеряно ${lost} золота.`);
     save();
     renderAll();
-    showModal(`
+    Core.modal(`
       <div class="big">🪦</div>
       <h3>Ты пал</h3>
       <p>${esc(r.monster)} оказался сильнее. Ты приходишь в себя в лагере у входа.</p>
@@ -496,23 +465,12 @@
       </ul>
       <p class="modal-tip">Совет: «Разведать» бесплатно. Проверь заклинание перед атакой.</p>
       <button class="btn attack" id="modal-close" type="button">Вернуться в бой</button>
-    `, true);
-  }
-
-  function showModal(html, isDefeat, onNext) {
-    const ov = $('overlay');
-    ov.innerHTML = `<div class="modal${isDefeat ? ' defeat' : ''}" role="dialog" aria-modal="true">${html}</div>`;
-    ov.hidden = false;
-    const close = () => { ov.hidden = true; ov.innerHTML = ''; $('sql').focus(); };
-    const c = $('modal-close');
-    if (c) { c.addEventListener('click', close); c.focus(); }
-    const n = $('modal-next');
-    if (n) { n.addEventListener('click', () => { close(); onNext && onNext(); }); n.focus(); }
+    `, { defeat: true, onClose: () => $('sql').focus() });
   }
 
   function switchRoom(id) {
-    if (!state.rooms[id] || !state.rooms[id].unlocked) return;
-    state.current = id;
+    if (!S().rooms[id] || !S().rooms[id].unlocked) return;
+    S().current = id;
     viewAct = null;
     const r = room();
     $('sql').value = '';
@@ -524,32 +482,11 @@
     scout();
   }
 
-  function resetGame() {
-    const btn = $('reset-btn');
-    if (btn.dataset.armed !== '1') {
-      btn.dataset.armed = '1';
-      btn.textContent = 'Точно? Нажми ещё раз';
-      setTimeout(() => { btn.dataset.armed = ''; btn.textContent = 'Начать заново'; }, 3000);
-      return;
-    }
-    btn.dataset.armed = '';
-    btn.textContent = 'Начать заново';
-    state = freshState();
-    viewAct = null;
-    $('sql').value = '';
-    Spell.update('');
-    log('info', `Ты спускаешься в подземелье. Перед тобой ${room().monster}.`);
-    save();
-    renderAll();
-    scout();
-  }
-
   // ---------- запуск ----------
 
   function bind() {
     $('run-btn').addEventListener('click', scout);
     $('attack-btn').addEventListener('click', attack);
-    $('reset-btn').addEventListener('click', resetGame);
     const ta = $('sql');
     ta.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -564,14 +501,23 @@
     ta.addEventListener('input', () => Spell.update(ta.value));
   }
 
-  async function start() {
-    bind();
-    $('sql').value = '';
-    Spell.mount($('pentagram'));
-    Spell.update('');
-    const r = room();
-    log('info', progress().cleared ? 'Этот зал уже зачищен. Здесь можно тренироваться без риска.' : `Ты стоишь в зале ${r.index + 1}. Перед тобой ${r.monster}.`);
+  let opened = false;
+  function open() {
+    if (!opened) {
+      opened = true;
+      $('sql').value = '';
+      Spell.mount($('pentagram'));
+      Spell.update('');
+      const r = room();
+      log('info', progress().cleared ? 'Этот зал уже зачищен. Здесь можно тренироваться без риска.' : `Ты стоишь в зале ${r.index + 1}. Перед тобой ${r.monster}.`);
+    }
+    viewAct = null;
     renderAll();
+    if (judge) scout();
+  }
+
+  async function init() {
+    bind();
     try {
       const SQL = await window.initSqlJs();
       judge = window.Judge.create(SQL, D);
@@ -579,14 +525,28 @@
       db.run(D.schemaSql);
       Spell.init($('pentagram'), new SQL.Database(db.export()));
       db.close();
-      Spell.update('');
+      Spell.update($('sql').value);
       $('run-btn').disabled = false;
       $('attack-btn').disabled = false;
-      scout();
+      if (Core.screen === 'sql') scout();
     } catch (e) {
       renderResult(null, { error: 'Не удалось загрузить SQLite: ' + e.message });
     }
   }
 
-  start();
+  Core.registerMode('sql', {
+    icon: '🐉',
+    xpOf: (state) => {
+      const rooms = (state.sql && state.sql.rooms) || {};
+      return D.rooms.reduce((sum, r) => sum + (rooms[r.id] && rooms[r.id].cleared ? r.xp : 0), 0);
+    },
+    progressOf: (state) => {
+      const rooms = (state.sql && state.sql.rooms) || {};
+      return { done: D.rooms.filter((r) => rooms[r.id] && rooms[r.id].cleared).length, available: D.rooms.length };
+    },
+    open,
+    refresh: () => { viewAct = null; renderAll(); },
+  });
+
+  init();
 })();

@@ -92,12 +92,19 @@ initSqlJs().then((SQL) => {
     });
   });
 
-  // Пороги званий: последний зал даёт ровно Архимага.
-  const last = D.rooms[D.rooms.length - 1];
-  const before = D.rankFor(last.xpBefore).name;
-  const after = D.rankFor(last.xpBefore + last.xp).name;
-  if (after !== 'Архимаг' || before === 'Архимаг') fails.push(`звания: до последнего зала «${before}», после «${after}»`);
-  if (D.ranks.length !== 8) fails.push('званий должно быть 8');
+  // Общая прогрессия: SQL получает ровно свою долю опыта, Архимаг требует почти всего опыта во всех режимах.
+  const P = require(path.join(dir, 'progression.js'));
+  const sqlXp = D.rooms.reduce((a, r) => a + r.xp, 0);
+  const sqlBudget = P.mode('sql').budget;
+  if (Math.abs(sqlXp - sqlBudget) > D.rooms.length) fails.push(`опыт SQL ${sqlXp}, а бюджет ${sqlBudget}`);
+  if (P.RANKS.length !== 8) fails.push('званий должно быть 8');
+  const arch = P.RANKS[P.RANKS.length - 1];
+  if (!(arch.xp < P.TOTAL_XP && arch.xp > P.TOTAL_XP * 0.85)) fails.push(`порог Архимага ${arch.xp} должен быть чуть ниже всего опыта ${P.TOTAL_XP}`);
+  if (sqlXp >= arch.xp) fails.push('одного SQL не должно хватать на Архимага');
+  const shares = P.MODES.reduce((a, m) => a + m.share, 0);
+  if (Math.abs(shares - 1) > 1e-9) fails.push(`доли режимов в сумме ${shares}, а должны давать 1`);
+  const api = P.MODES.filter((m) => /^API/.test(m.name)).reduce((a, m) => a + m.share, 0);
+  if (!(api >= P.mode('sql').share && P.mode('sql').share > P.mode('theory').share)) fails.push('больше всего опыта должны давать API и SQL');
 
   console.log(`Залов: ${D.rooms.length}. Проверено готовых подсказок: ${checkedHints}. Ошибок: ${fails.length}.`);
   fails.forEach((f) => console.log(' ✗ ' + f));

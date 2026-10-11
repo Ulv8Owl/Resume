@@ -134,18 +134,6 @@ window.DUNGEON = {
     ],
   },
 
-  // Звания мага и номер зала, после победы в котором звание присваивается.
-  ranks: [
-    { name: 'Ученик', after: 0 },
-    { name: 'Подмастерье', after: 13 },
-    { name: 'Адепт', after: 26 },
-    { name: 'Чародей', after: 39 },
-    { name: 'Волшебник', after: 52 },
-    { name: 'Магистр', after: 65 },
-    { name: 'Верховный магистр', after: 78 },
-    { name: 'Архимаг', after: 90 },
-  ],
-
   acts: [
     { name: 'Акт I · Верхние ярусы', topic: 'Основы: SELECT, INSERT, UPDATE, DELETE', from: 0, to: 30 },
     { name: 'Акт II · Глубины', topic: 'Средний уровень: JOIN, GROUP BY, подзапросы', from: 30, to: 60 },
@@ -157,35 +145,25 @@ window.DUNGEON = {
 
   rooms: [],
 
-  // Сила монстров, награда и пороги званий считаются от номера зала.
+  // Сила монстров и награда растут от зала к залу. Опыт берётся из бюджета SQL в общей прогрессии.
   finalize() {
     const D = this;
     if (D.ready) return;
     D.ready = true;
-    let xpTotal = 0;
+    const P = (typeof Progression !== 'undefined') ? Progression : require('./progression.js');
+    const weight = (i) => (30 + i * 1.5) * (D.rooms[i] && D.rooms[i].boss ? 2 : 1);
     D.rooms.forEach((r, i) => {
       r.index = i;
       r.floor = `Зал ${i + 1}`;
       r.kind = r.kind || 'query';
-      r.xp = Math.round((30 + i * 1.5) * (r.boss ? 2 : 1));
+      r.xp = P.levelXp('sql', i, weight);
       r.gold = Math.round((25 + i * 4) * (r.boss ? 2 : 1));
       r.maxHp = Math.round((80 + i * 9) * (r.boss ? 1.6 : 1));
-      r.xpBefore = xpTotal;
-      xpTotal += r.xp;
-    });
-    // Порог звания — весь опыт за залы до него включительно. Архимаг = опыт за все 90 залов.
-    D.ranks.forEach((rk, k) => {
-      const last = D.rooms[rk.after - 1];
-      rk.xp = rk.after === 0 ? 0 : last ? last.xpBefore + last.xp : Infinity;
-      rk.maxHp = 100 + 20 * k;
-    });
-    // Урон монстра рассчитан под здоровье мага того звания, с которым он входит в зал.
-    D.rooms.forEach((r) => {
-      r.attack = Math.round(D.rankFor(r.xpBefore).maxHp / (r.boss ? 4.5 : 6));
     });
   },
 
-  rankFor(xp) {
-    return this.ranks.filter((rk) => xp >= rk.xp).pop();
+  // Урон монстра зависит от здоровья мага: обычный монстр убивает за 6 промахов, босс — за 4–5.
+  attackFor(room, playerMaxHp) {
+    return Math.round(playerMaxHp / (room.boss ? 4.5 : 6));
   },
 };

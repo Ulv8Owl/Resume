@@ -273,7 +273,7 @@ td.null { color: var(--dust); font-style: italic; }
   .arena.boss .monster { font-size: 3.6rem; }
   .kbd { display: none; }
   .stat { min-width: 100px; }
-  .stat-rank { min-width: 0; flex: 1 1 100%; }
+  .stat-rank { min-width: 0; flex: 1 1 200px; }
   .tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .act-tab { flex: 1 1 100%; justify-content: space-between; }
 }

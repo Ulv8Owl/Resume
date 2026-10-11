@@ -16,8 +16,6 @@
       player: { level: 1, xp: 0, hp: 100, maxHp: 100, gold: 0 },
       rooms,
       current: D.rooms[0].id,
-      drafts: {},
-      log: [],
     };
   }
 
@@ -219,40 +217,35 @@
     const st = progress();
     const box = $('hints');
     box.innerHTML = '';
-    r.hints.forEach((text, i) => {
+    r.hints.slice(0, st.hints).forEach((text, i) => {
+      const d = document.createElement('div');
+      d.className = 'hint open';
+      d.innerHTML = `<span class="lvl">${'I'.repeat(i + 1)}</span><span class="body">${text}</span>`;
+      box.appendChild(d);
+    });
+    if (st.hints < r.hints.length) {
+      const i = st.hints;
       const b = document.createElement('button');
       b.type = 'button';
-      if (i < st.hints) {
-        b.className = 'hint open';
-        b.disabled = true;
-        b.innerHTML = `<span class="lvl">${'I'.repeat(i + 1)}</span><span class="body">${text}</span>`;
-      } else {
-        const next = i === st.hints;
-        const after = Math.round(D.hintMultipliers[i + 1] * 100);
-        b.className = 'hint' + (next ? '' : ' sealed');
-        b.disabled = !next;
-        b.innerHTML = `<span class="lvl">${'I'.repeat(i + 1)}</span><span>${next ? 'Сломать печать свитка' : 'Запечатан: сначала открой предыдущий'}</span><span class="cost">добыча → ${after}%</span>`;
-        if (next) b.addEventListener('click', () => openHint(i));
-      }
+      b.className = 'hint';
+      const cost = st.cleared ? 'бесплатно' : `добыча → ${Math.round(D.hintMultipliers[i + 1] * 100)}%`;
+      b.innerHTML = `<span class="lvl">${'I'.repeat(i + 1)}</span><span>Сломать печать свитка</span><span class="cost">${cost}</span>`;
+      b.addEventListener('click', () => openHint(i));
       box.appendChild(b);
-    });
+    }
+    $('hints-count').textContent = `открыто ${st.hints} из ${r.hints.length}`;
   }
 
-  function renderLog() {
-    const ul = $('log');
-    ul.innerHTML = '';
-    state.log.slice(-30).reverse().forEach((e) => {
-      const li = document.createElement('li');
-      li.className = e.t;
-      li.textContent = e.m;
-      ul.appendChild(li);
-    });
-  }
-
+  // Короткая строка о последнем событии боя прямо под монстром.
+  // В пределах одной атаки сообщения дописываются: «ты нанёс урон» + «монстр ответил».
+  let turnLogged = false;
   function log(t, m) {
-    state.log.push({ t, m });
-    if (state.log.length > 60) state.log = state.log.slice(-60);
+    const line = $('arena-line');
+    line.className = 'arena-line ' + t;
+    line.textContent = turnLogged ? line.textContent + ' ' + m : m;
+    turnLogged = inAttack;
   }
+  let inAttack = false;
 
   function renderSchema() {
     const dg = D.diagram;
@@ -266,25 +259,30 @@
       return tb.y + HEAD + ROW * i + ROW / 2;
     };
     let out = '';
-    dg.links.forEach(([ft, fc, tt, tc]) => {
-      const a = dg.tables[ft], b = dg.tables[tt];
-      const y1 = rowY(ft, fc), y2 = rowY(tt, tc);
-      let x1, x2, path;
-      if (ft === tt) {
-        // ссылка таблицы на саму себя: петля справа
-        x1 = x2 = a.x + W;
-        path = `M${x1} ${y1} C${x1 + 30} ${y1} ${x1 + 30} ${y2} ${x2} ${y2}`;
-      } else if (a.x === b.x) {
-        // таблицы друг под другом: дуга слева
-        x1 = a.x; x2 = b.x;
-        path = `M${x1} ${y1} C${x1 - 28} ${y1} ${x2 - 28} ${y2} ${x2} ${y2}`;
-      } else {
-        x1 = a.x > b.x ? a.x : a.x + W;
-        x2 = a.x > b.x ? b.x + W : b.x;
-        const mid = (x1 + x2) / 2;
-        path = `M${x1} ${y1} C${mid} ${y1} ${mid} ${y2} ${x2} ${y2}`;
+    // Связи рисуются ломаными по своим «коридорам» (lane), чтобы не пересекаться.
+    const sideX = (t, side) => (side === 'left' ? dg.tables[t].x : dg.tables[t].x + W);
+    const rounded = (pts) => {
+      let d = `M${pts[0][0]} ${pts[0][1]}`;
+      for (let i = 1; i < pts.length - 1; i++) {
+        const [px, py] = pts[i - 1], [x, y] = pts[i], [nx, ny] = pts[i + 1];
+        const r1 = Math.min(6, Math.hypot(x - px, y - py) / 2), r2 = Math.min(6, Math.hypot(nx - x, ny - y) / 2);
+        const ux = Math.sign(x - px), uy = Math.sign(y - py), vx = Math.sign(nx - x), vy = Math.sign(ny - y);
+        d += ` L${x - ux * r1} ${y - uy * r1} Q${x} ${y} ${x + vx * r2} ${y + vy * r2}`;
       }
-      out += `<path class="schema-link" d="${path}"/><circle class="schema-dot" cx="${x1}" cy="${y1}" r="3"/><circle class="schema-dot" cx="${x2}" cy="${y2}" r="3"/>`;
+      const [lx, ly] = pts[pts.length - 1];
+      return d + ` L${lx} ${ly}`;
+    };
+    const pkDots = new Set();
+    dg.links.forEach(({ from: [ft, fc, fs], to: [tt, tc, ts], lane }) => {
+      const x1 = sideX(ft, fs), y1 = rowY(ft, fc);
+      const x2 = sideX(tt, ts), y2 = rowY(tt, tc);
+      const pts = y1 === y2 ? [[x1, y1], [x2, y2]] : [[x1, y1], [lane, y1], [lane, y2], [x2, y2]];
+      out += `<path class="schema-link" d="${rounded(pts)}"/><circle class="schema-dot fk" cx="${x1}" cy="${y1}" r="3"/>`;
+      const key = x2 + ':' + y2;
+      if (!pkDots.has(key)) {
+        pkDots.add(key);
+        out += `<circle class="schema-dot" cx="${x2}" cy="${y2}" r="4"/>`;
+      }
     });
     Object.entries(dg.tables).forEach(([name, tb]) => {
       const h = HEAD + ROW * tb.cols.length;
@@ -356,7 +354,6 @@
     renderArena();
     renderTask();
     renderHints();
-    renderLog();
     renderSchema();
   }
 
@@ -367,8 +364,8 @@
     const f = document.createElement('span');
     f.className = 'floater ' + cls;
     f.textContent = text;
-    f.style.left = (cls === 'dmg' ? 22 + Math.random() * 30 : 60 + Math.random() * 25) + '%';
-    f.style.top = '30%';
+    f.style.left = (cls === 'dmg' ? 4 + Math.random() * 10 : 70 + Math.random() * 15) + '%';
+    f.style.top = cls === 'dmg' ? '8%' : '30%';
     arena.appendChild(f);
     setTimeout(() => f.remove(), 1200);
   }
@@ -393,6 +390,11 @@
 
   function scout() {
     if (!SQL) return;
+    if (!currentSql().trim()) {
+      $('results').innerHTML = '<p class="empty">Книга пуста. Напиши заклинание и нажми «Разведать», или нажми на таблицу в схеме, чтобы прочесть её строки.</p>';
+      $('results-meta').textContent = '';
+      return;
+    }
     try {
       renderResult(runSql(currentSql()), { label: 'разведка' });
     } catch (e) {
@@ -416,6 +418,12 @@
   }
 
   function attack() {
+    inAttack = true;
+    turnLogged = false;
+    try { attackTurn(); } finally { inAttack = false; turnLogged = false; }
+  }
+
+  function attackTurn() {
     if (!SQL) return;
     const r = room();
     const st = progress();
@@ -466,7 +474,6 @@
     save();
     renderHud();
     renderArena();
-    renderLog();
   }
 
   function openHint(i) {
@@ -478,7 +485,6 @@
     save();
     renderHints();
     renderTask();
-    renderLog();
   }
 
   function victory() {
@@ -575,12 +581,12 @@
 
   function switchRoom(id) {
     if (!state.rooms[id] || !state.rooms[id].unlocked) return;
-    state.drafts[state.current] = currentSql();
     state.current = id;
     const r = room();
-    $('sql').value = state.drafts[id] != null ? state.drafts[id] : r.starter;
+    $('sql').value = '';
     Spell.update($('sql').value);
-    if (!progress().cleared) log('info', `Ты входишь: ${r.floor}. Перед тобой ${r.monster}.`);
+    if (progress().cleared) log('info', 'Этот зал уже зачищен. Здесь можно тренироваться без риска.');
+    else log('info', `Ты входишь: ${r.floor}. Перед тобой ${r.monster}.`);
     save();
     renderAll();
     scout();
@@ -597,7 +603,7 @@
     btn.dataset.armed = '';
     btn.textContent = 'Начать заново';
     state = freshState();
-    $('sql').value = room().starter;
+    $('sql').value = '';
     Spell.update($('sql').value);
     log('info', `Ты спускаешься в подземелье. Перед тобой ${room().monster}.`);
     save();
@@ -624,19 +630,16 @@
     });
     ta.addEventListener('input', () => {
       Spell.update(ta.value);
-      state.drafts[state.current] = ta.value;
-      clearTimeout(bind.t);
-      bind.t = setTimeout(save, 400);
     });
   }
 
   async function start() {
     bind();
     const r = room();
-    $('sql').value = state.drafts[r.id] != null ? state.drafts[r.id] : r.starter;
+    $('sql').value = '';
     Spell.mount($('pentagram'));
     Spell.update($('sql').value);
-    if (!state.log.length) log('info', `Ты спускаешься в подземелье. Перед тобой ${r.monster}.`);
+    log('info', `Ты спускаешься в подземелье. Перед тобой ${r.monster}.`);
     renderAll();
     try {
       SQL = await window.initSqlJs();

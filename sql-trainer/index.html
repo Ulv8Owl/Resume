@@ -41,6 +41,7 @@
           <div class="monster-meta" id="monster-meta"></div>
         </div>
         <p class="intro" id="monster-intro"></p>
+        <p class="arena-line" id="arena-line"></p>
       </section>
 
       <section class="panel task m2">
@@ -51,21 +52,19 @@
         <div class="reward" id="reward"></div>
       </section>
 
-      <section class="panel m6">
-        <p class="eyebrow">Свитки подсказок</p>
-        <div class="hints" id="hints"></div>
-      </section>
-
-      <section class="panel m7">
-        <p class="eyebrow">Журнал боя</p>
-        <ul class="log" id="log"></ul>
+      <section class="panel m5">
+        <div class="results-head">
+          <p class="eyebrow">Результат</p>
+          <span class="results-meta" id="results-meta"></span>
+        </div>
+        <div id="results"><p class="loading">Загружаю SQLite…</p></div>
       </section>
     </div>
 
     <div class="col">
       <section class="panel m3">
         <p class="eyebrow">Схема базы данных</p>
-        <div class="schema-wrap"><svg id="schema" role="img" aria-label="Схема таблиц guilds, heroes, quests, quest_log"></svg></div>
+        <div class="schema-wrap"><svg id="schema" role="img" aria-label="Схема таблиц artifacts, guilds, heroes, quest_log, quests"></svg></div>
         <p class="schema-note">Нажми на таблицу, чтобы увидеть её строки. Подсвечены таблицы, нужные для задания.</p>
       </section>
 
@@ -74,26 +73,22 @@
           <div class="desk-book">
             <p class="eyebrow">Книга заклинаний</p>
             <label for="sql" hidden>SQL-запрос</label>
-            <textarea id="sql" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+            <textarea id="sql" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Начертай заклинание, например:&#10;SELECT … FROM …"></textarea>
             <div class="actions">
               <button class="btn" id="run-btn" type="button" disabled>Разведать</button>
               <button class="btn attack" id="attack-btn" type="button" disabled>⚔ Атаковать</button>
             </div>
             <p class="kbd"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> разведка · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> атака</p>
+            <div class="scrolls">
+              <p class="eyebrow">Свитки подсказок <span id="hints-count"></span></p>
+              <div class="hints" id="hints"></div>
+            </div>
           </div>
           <div class="desk-circle">
             <p class="eyebrow">Пентаграмма</p>
             <div class="pentagram" id="pentagram"></div>
           </div>
         </div>
-      </section>
-
-      <section class="panel m5">
-        <div class="results-head">
-          <p class="eyebrow">Результат</p>
-          <span class="results-meta" id="results-meta"></span>
-        </div>
-        <div id="results"><p class="loading">Загружаю SQLite…</p></div>
       </section>
     </div>
   </main>

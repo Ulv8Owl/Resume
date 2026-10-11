@@ -114,21 +114,20 @@ button:focus-visible, textarea:focus-visible, .map-room:focus-visible, .schema-t
 .reward .muted { color: var(--dust); font-size: var(--step--1); }
 .hints { display: grid; gap: 8px; }
 .hint { border: 1px dashed var(--seam); border-radius: var(--radius); background: none; text-align: left; padding: 8px 12px; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
-.hint:not(:disabled):hover { border-color: var(--torch); }
+button.hint:hover { border-color: var(--torch); }
 .hint:disabled { cursor: default; }
 .hint .lvl { font-family: var(--font-display); color: var(--torch); }
 .hint .cost { font-size: var(--step--1); color: var(--blood); white-space: nowrap; }
-.hint.open { border-style: solid; background: var(--slab-2); grid-template-columns: auto 1fr; }
+.hint.open { border-style: solid; background: var(--slab-2); grid-template-columns: auto 1fr; font-size: var(--step--1); }
 .hint.open .body { min-width: 0; overflow-wrap: anywhere; }
 .hint.sealed { opacity: 0.5; }
 
-/* log */
-.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 220px; overflow-y: auto; font-size: var(--step--1); }
-.log li { padding-left: 12px; border-left: 2px solid var(--seam); color: var(--dust); }
-.log li.dmg { border-color: var(--torch); color: var(--parchment); }
-.log li.hurt { border-color: var(--blood); }
-.log li.win { border-color: var(--rune); color: var(--rune); }
-.log li.info { border-color: var(--seam); }
+/* одна строка о последнем событии боя */
+.arena-line { grid-column: 1 / -1; margin: 4px 0 0; min-height: 1.5em; font-size: var(--step--1); padding-left: 10px; border-left: 2px solid var(--seam); color: var(--dust); }
+.arena-line:empty { display: none; }
+.arena-line.dmg { border-color: var(--torch); color: var(--parchment); }
+.arena-line.hurt { border-color: var(--blood); color: var(--parchment); }
+.arena-line.win { border-color: var(--rune); color: var(--rune); }
 
 /* schema */
 .schema-wrap { overflow-x: auto; }
@@ -144,7 +143,8 @@ button:focus-visible, textarea:focus-visible, .map-room:focus-visible, .schema-t
 .schema-table text.type { fill: var(--dust); font-size: 11px; }
 .schema-table text.key { fill: var(--torch); font-size: 10px; }
 .schema-link { fill: none; stroke: var(--dust); stroke-width: 1.3; stroke-dasharray: 4 3; }
-.schema-dot { fill: var(--dust); }
+.schema-dot { fill: var(--torch); }
+.schema-dot.fk { fill: var(--dust); }
 .schema-note { font-size: var(--step--1); color: var(--dust); margin: 6px 0 0; }
 
 /* editor */
@@ -166,7 +166,10 @@ button:focus-visible, textarea:focus-visible, .map-room:focus-visible, .schema-t
 /* spell desk: book + pentagram */
 .desk { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
 .desk-book, .desk-circle { min-width: 0; }
-.desk-book textarea { min-height: 236px; }
+.desk-book textarea { min-height: 200px; }
+.desk-book textarea::placeholder { color: var(--dust); opacity: 0.6; }
+.scrolls { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--seam); }
+.scrolls .eyebrow span { text-transform: none; letter-spacing: 0; margin-left: 6px; }
 
 .pentagram { display: grid; gap: 8px; justify-items: center; }
 .pentagram-svg { width: 100%; max-width: 300px; height: auto; display: block; overflow: visible; }
@@ -209,7 +212,7 @@ button:focus-visible, textarea:focus-visible, .map-room:focus-visible, .schema-t
 /* results */
 .results-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .results-meta { font-size: var(--step--1); color: var(--dust); font-variant-numeric: tabular-nums; }
-.table-wrap { overflow: auto; max-height: 320px; border: 1px solid var(--seam); border-radius: var(--radius); }
+.table-wrap { overflow: auto; max-height: 420px; border: 1px solid var(--seam); border-radius: var(--radius); }
 table { border-collapse: collapse; width: 100%; font: 13px/1.4 var(--font-mono); font-variant-numeric: tabular-nums; }
 th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--seam); white-space: nowrap; }
 th { position: sticky; top: 0; background: var(--slab-2); color: var(--torch); font-weight: 600; }
@@ -246,7 +249,7 @@ td.null { color: var(--dust); font-style: italic; }
   .board { grid-template-columns: minmax(0, 1fr); }
   /* на узком экране порядок как у игрока: задание, схема, запрос, результат */
   .col { display: contents; }
-  .m1 { order: 1; } .m2 { order: 2; } .m3 { order: 3; } .m4 { order: 4; } .m5 { order: 5; } .m6 { order: 6; } .m7 { order: 7; }
+  .m1 { order: 1; } .m2 { order: 2; } .m3 { order: 3; } .m4 { order: 4; } .m5 { order: 5; }
   .stats { margin-left: 0; }
 }
 @media (max-width: 480px) {

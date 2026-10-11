@@ -1,1 +1,86 @@
 /* Стили симулятора: swagger. Общие стили — в academy.css. */
+.swagger { min-width: 0; }
+.sw-info code { overflow-wrap: anywhere; }
+.sw-servers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; min-width: 0; max-width: 100%; }
+.sw-servers select { min-width: 0; max-width: 100%; font-size: 13px; border: 1px solid #c4c4c4; border-radius: 4px; background: #fff; color: #3b4151; }
+
+/* PUT и PATCH — цвета как в Swagger UI */
+.sw-op.m-put { border-color: #fca130; background: #fff5ea; }
+.sw-op.m-patch { border-color: #50e3c2; background: #edfcf9; }
+.m-put .sw-method { background: #fca130; }
+.m-patch .sw-method { background: #50e3c2; }
+
+.sw-op-head { cursor: pointer; }
+.sw-op-head:hover { background: rgba(0, 0, 0, 0.03); }
+.sw-op-body { min-width: 0; }
+.sw-params select.sw-param { margin-top: 4px; width: 100%; padding: 5px 8px; border: 1px solid #c4c4c4; border-radius: 4px; font: 13px var(--font-mono); background: #fff; color: #3b4151; }
+.sw-params select.sw-param:disabled { background: #f1f1f1; }
+.sw-params .sw-param.invalid { border-color: #f93e3e; background: #feebeb; }
+.sw-params td:first-child { width: 34%; }
+.sw-params td small i { font-style: italic; }
+.req { color: #f93e3e; }
+.sw-params .req, .sw-schema .req { font-weight: 700; }
+.swagger .btn.sw-try.cancel { border-color: #f93e3e; color: #f93e3e; }
+.sw-media { font: 13px var(--font-body); padding: 4px 6px; border: 1px solid #c4c4c4; border-radius: 4px; background: #fff; color: #3b4151; max-width: 100%; }
+.sw-body-note { color: #7d8492; font-size: 12px; margin-top: -6px; }
+.sw-error { margin: 0; color: #c0392b; font-weight: 600; font-size: 13px; }
+.sw-result:empty { display: none; }
+.sw-result { display: grid; gap: 2px; min-width: 0; }
+.sw-result .sw-row .sw-label { margin: 6px 0 2px; }
+.swagger .btn.sw-copy { padding: 2px 10px; font-size: 12px; }
+
+/* Server response */
+.sw-server td.code { width: 90px; }
+.sw-undoc { display: block; font-size: 11px; font-weight: 400; color: #7d8492; font-style: italic; }
+.sw-errline { color: #c0392b !important; }
+
+/* Responses: Example Value / Schema */
+.sw-resp th { border-bottom: 1px solid #c4c4c4; padding: 6px 8px; text-align: left; color: #3b4151; background: none; font-size: 12px; position: static; }
+.sw-resp td.sw-code { width: 60px; font-weight: 700; }
+.sw-resp td { min-width: 0; }
+.sw-rdesc { margin: 0 0 4px; }
+.sw-resp td small { display: block; color: #7d8492; margin-bottom: 4px; overflow-wrap: anywhere; }
+.sw-resp code { font-size: 12px; padding: 0 3px; border-radius: 3px; }
+.sw-tabs { display: flex; gap: 0; margin: 2px 0 4px; }
+.sw-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 3px 8px 3px 0; margin-right: 10px; font: 600 12px var(--font-body); color: #7d8492; cursor: pointer; }
+.sw-tabs button.on { color: #3b4151; border-bottom-color: #89bf04; }
+.sw-ex { margin: 0; padding: 8px; background: #333 !important; color: #fff !important; border-radius: 4px; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
+
+/* Модели */
+.sw-model { font: 12px/1.5 var(--font-mono); background: #fff; border: 1px solid #e3e3e3; border-radius: 4px; padding: 6px 8px; overflow-x: auto; }
+.sw-brace { display: block; font-weight: 700; color: #3b4151; }
+.sw-model-desc { display: block; color: #7d8492; font-family: var(--font-body); margin: 2px 0; }
+.sw-model table { width: 100%; border-collapse: collapse; margin: 2px 0 2px 12px; width: calc(100% - 12px); }
+.sw-model td { padding: 3px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; color: #3b4151; background: none; white-space: normal; position: static; text-align: left; }
+.sw-model td:first-child { white-space: nowrap; width: 1%; }
+.sw-model td small { display: block; color: #7d8492; font-size: 11px; overflow-wrap: anywhere; }
+.sw-type { color: #55a; font-weight: 600; }
+.sw-schemas > div { gap: 6px; }
+.sw-model-item { border: 1px solid #e3e3e3; border-radius: 4px; background: #fafafa; }
+.sw-model-item > summary { padding: 6px 10px; cursor: pointer; font: 600 13px var(--font-mono); color: #3b4151; }
+.sw-model-item[open] > summary { border-bottom: 1px solid #e3e3e3; }
+.sw-model-item > .sw-model { border: 0; margin: 4px; }
+
+/* Окно Authorize (в общем тёмном модальном окне) */
+.sw-auth-list { display: grid; gap: 14px; text-align: left; max-height: 60vh; overflow: auto; }
+.sw-auth-list .sw-auth-form { padding: 10px 12px; border: 1px solid var(--seam, #555); border-radius: 6px; }
+.sw-auth-list .sw-auth-form p { margin: 0; }
+.sw-auth-meta { font-size: 13px; opacity: 0.8; }
+.sw-auth-list code { overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  .sw-info, .sw-bar { padding-left: 12px; padding-right: 12px; }
+  .sw-ops { padding: 8px 10px 14px; }
+  .sw-schemas { margin: 0 10px 14px; }
+  .sw-op-body { padding: 8px 8px 12px; }
+  .sw-params td:first-child { width: 30%; }
+  .sw-params th, .sw-params td, .sw-resp td, .sw-server td { padding: 5px 4px; }
+  .sw-server td.code { width: 64px; }
+  .sw-resp td.sw-code { width: 40px; }
+  .sw-bar { justify-content: flex-start; }
+  .sw-servers select { width: 100%; }
+}
+
+/* таблицы Swagger — обычным шрифтом, моноширинный только для кода */
+.sw-params th, .sw-params td, .sw-resp th, .sw-resp td, .sw-server th, .sw-server td { font-family: var(--font-body); }
+.sw-server td.code, .sw-resp td.sw-code { font-family: var(--font-mono); }

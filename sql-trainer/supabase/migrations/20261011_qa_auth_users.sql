@@ -2,6 +2,7 @@
 -- Регистрация по-прежнему только по никнейму и паролю: адрес почты для Auth генерируется из id пользователя
 -- и нигде не показывается, а пользователь создаётся уже подтверждённым — писем и подтверждений нет.
 -- Прогресс хранится в qa_progress и доступен только своему владельцу (RLS по auth.uid()).
+-- Миграция уже применена к проекту; повторный запуск безопасен и ничего не меняет.
 
 create table if not exists public.qa_progress (
   user_id      uuid primary key references auth.users(id) on delete cascade,
@@ -18,10 +19,20 @@ alter table public.qa_progress enable row level security;
 revoke all on public.qa_progress from anon, authenticated;
 grant select, update (state, updated_at) on public.qa_progress to authenticated;
 
-create policy "qa_progress: читать свой прогресс" on public.qa_progress
-  for select to authenticated using (user_id = (select auth.uid()));
-create policy "qa_progress: сохранять свой прогресс" on public.qa_progress
-  for update to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+-- Политики создаются, только если их ещё нет: миграцию можно запускать повторно.
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'qa_progress'
+                 and policyname = 'qa_progress: читать свой прогресс') then
+    create policy "qa_progress: читать свой прогресс" on public.qa_progress
+      for select to authenticated using (user_id = (select auth.uid()));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'qa_progress'
+                 and policyname = 'qa_progress: сохранять свой прогресс') then
+    create policy "qa_progress: сохранять свой прогресс" on public.qa_progress
+      for update to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+  end if;
+end $$;
 
 -- Служебный адрес почты для Auth: из id, чтобы никнейм на кириллице не мешал формату почты.
 create or replace function public.qa_auth_email_for(p_user uuid)
@@ -115,6 +126,9 @@ do $$
 declare
   r record;
 begin
+  if to_regclass('public.qa_players') is null then
+    return; -- старая таблица уже удалена очисткой
+  end if;
   for r in select * from public.qa_players p
            where not exists (select 1 from public.qa_progress g where g.nickname_key = p.name_key) loop
     perform public.qa_create_auth_user(r.id, r.name, r.pass_hash, r.created_at);
@@ -123,8 +137,13 @@ begin
 end $$;
 
 -- Старые функции входа через собственные сессии больше не доступны снаружи.
-revoke all on function public.qa_login(text, text), public.qa_load(text), public.qa_save(text, jsonb), public.qa_logout(text)
-  from anon, authenticated;
+do $$
+begin
+  if to_regprocedure('public.qa_login(text, text)') is not null then
+    revoke all on function public.qa_login(text, text), public.qa_load(text), public.qa_save(text, jsonb), public.qa_logout(text)
+      from anon, authenticated;
+  end if;
+end $$;
 revoke all on function public.qa_create_auth_user(uuid, text, text, timestamptz), public.qa_auth_email_for(uuid) from public, anon, authenticated;
 revoke all on function public.qa_register(text, text), public.qa_login_email(text), public.qa_name_available(text) from public;
 grant execute on function public.qa_register(text, text), public.qa_login_email(text), public.qa_name_available(text) to anon, authenticated;

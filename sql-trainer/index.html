@@ -6,23 +6,24 @@
 <title>Подземелье запросов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Pixelify+Sans:wght@400;500&family=Rubik:ital,wght@0,400;0,500;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+Runic&family=Pixelify+Sans:wght@400;500&family=Rubik:ital,wght@0,400;0,500;1,400&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="shell">
   <header class="hud">
-    <h1 class="brand">Подземелье запросов<small>SQL-тренажёр: каждый верный запрос — удар по монстру</small></h1>
+    <h1 class="brand">Подземелье запросов<small>SQL-тренажёр: запросы — твои заклинания, монстры — настоящие</small></h1>
     <div class="stats">
       <div class="stat">
         <div class="stat-label">Здоровье <b id="hp-text">100 / 100</b></div>
         <div class="bar hp"><i id="hp-bar"></i></div>
       </div>
       <div class="stat">
-        <div class="stat-label">Уровень <b id="lvl-text">1</b> <b id="xp-text">0 / 100 XP</b></div>
+        <div class="stat-label">Звание <b id="lvl-text">Ученик · 1</b> <b id="xp-text">0 / 100 XP</b></div>
         <div class="bar xp"><i id="xp-bar"></i></div>
       </div>
       <span class="chip gold">🪙 <b id="gold-text">0</b></span>
+      <span class="chip" title="Зачищено залов">🗝 <b id="cleared-text">0 / 20</b></span>
       <div class="trophies" id="trophies" aria-label="Трофеи"></div>
       <button class="ghost-btn" id="reset-btn" type="button">Начать заново</button>
     </div>
@@ -45,6 +46,7 @@
       <section class="panel task m2">
         <p class="eyebrow">Задание</p>
         <p id="task-text"></p>
+        <div class="task-spell" id="task-spell"></div>
         <div class="task-tables" id="task-tables"></div>
         <div class="reward" id="reward"></div>
       </section>
@@ -68,13 +70,21 @@
       </section>
 
       <section class="panel editor m4">
-        <p class="eyebrow">Книга заклинаний</p>
-        <label for="sql" class="eyebrow" hidden>SQL-запрос</label>
-        <textarea id="sql" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
-        <div class="actions">
-          <button class="btn" id="run-btn" type="button" disabled>Разведать</button>
-          <button class="btn attack" id="attack-btn" type="button" disabled>⚔ Атаковать</button>
-          <span class="kbd"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> разведка · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> атака</span>
+        <div class="desk">
+          <div class="desk-book">
+            <p class="eyebrow">Книга заклинаний</p>
+            <label for="sql" hidden>SQL-запрос</label>
+            <textarea id="sql" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+            <div class="actions">
+              <button class="btn" id="run-btn" type="button" disabled>Разведать</button>
+              <button class="btn attack" id="attack-btn" type="button" disabled>⚔ Атаковать</button>
+            </div>
+            <p class="kbd"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> разведка · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> атака</p>
+          </div>
+          <div class="desk-circle">
+            <p class="eyebrow">Пентаграмма</p>
+            <div class="pentagram" id="pentagram"></div>
+          </div>
         </div>
       </section>
 
@@ -93,6 +103,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-asm.js"></script>
 <script src="data.js"></script>
+<script src="spell.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

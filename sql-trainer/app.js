@@ -2,7 +2,7 @@
   'use strict';
 
   const D = window.DUNGEON;
-  const STORE_KEY = 'sql-dungeon-v1';
+  const STORE_KEY = 'sql-dungeon-v2';
   const $ = (id) => document.getElementById(id);
 
   // ---------- состояние ----------
@@ -46,7 +46,8 @@
 
   const room = () => D.rooms.find((r) => r.id === state.current);
   const progress = () => state.rooms[state.current];
-  const xpToNext = (lvl) => 100 * lvl;
+  const xpToNext = (lvl) => 50 * lvl;
+  const rankOf = (lvl) => D.ranks.filter(([from]) => lvl >= from).pop()[1];
 
   // ---------- SQL ----------
 
@@ -126,7 +127,8 @@
     const p = state.player;
     $('hp-text').textContent = `${p.hp} / ${p.maxHp}`;
     setBar($('hp-bar'), p.hp / p.maxHp);
-    $('lvl-text').textContent = p.level;
+    $('lvl-text').textContent = `${rankOf(p.level)} · ${p.level}`;
+    $('cleared-text').textContent = `${D.rooms.filter((r) => state.rooms[r.id].cleared).length} / ${D.rooms.length}`;
     $('xp-text').textContent = `${p.xp} / ${xpToNext(p.level)} XP`;
     setBar($('xp-bar'), p.xp / xpToNext(p.level));
     $('gold-text').textContent = p.gold;
@@ -168,12 +170,8 @@
       b.addEventListener('click', () => switchRoom(r.id));
       add(b);
     });
-    D.lockedTeasers.forEach((name) => {
-      const b = document.createElement('div');
-      b.className = 'map-room locked';
-      b.innerHTML = `<span class="sprite">🔒</span><span><span class="floor">Скоро</span><br><span class="name">${name}</span></span><span class="stars">закрыто</span>`;
-      add(b);
-    });
+    const cur = map.querySelector('.current');
+    if (cur) map.scrollLeft = cur.offsetLeft - map.clientWidth / 2 + cur.offsetWidth / 2;
   }
 
   function monsterHp() {
@@ -207,6 +205,7 @@
     const r = room();
     const st = progress();
     $('task-text').innerHTML = r.task;
+    $('task-spell').innerHTML = `Заклинание: <b>${r.spell}</b> · ${r.topic}`;
     $('task-tables').innerHTML = 'Таблицы: ' + r.tables.map((t) => `<code>${t}</code>`).join(', ') + (r.ordered ? ' · порядок строк проверяется' : ' · порядок строк не важен');
     const rw = rewardFor(r, st);
     $('reward').innerHTML = st.cleared
@@ -270,9 +269,21 @@
     dg.links.forEach(([ft, fc, tt, tc]) => {
       const a = dg.tables[ft], b = dg.tables[tt];
       const y1 = rowY(ft, fc), y2 = rowY(tt, tc);
-      // связи на схеме всегда идут от FK справа к PK таблицы слева
-      const x1 = a.x, x2 = b.x + W, mid = (x1 + x2) / 2;
-      const path = `M${x1} ${y1} C${mid} ${y1} ${mid} ${y2} ${x2} ${y2}`;
+      let x1, x2, path;
+      if (ft === tt) {
+        // ссылка таблицы на саму себя: петля справа
+        x1 = x2 = a.x + W;
+        path = `M${x1} ${y1} C${x1 + 30} ${y1} ${x1 + 30} ${y2} ${x2} ${y2}`;
+      } else if (a.x === b.x) {
+        // таблицы друг под другом: дуга слева
+        x1 = a.x; x2 = b.x;
+        path = `M${x1} ${y1} C${x1 - 28} ${y1} ${x2 - 28} ${y2} ${x2} ${y2}`;
+      } else {
+        x1 = a.x > b.x ? a.x : a.x + W;
+        x2 = a.x > b.x ? b.x + W : b.x;
+        const mid = (x1 + x2) / 2;
+        path = `M${x1} ${y1} C${mid} ${y1} ${mid} ${y2} ${x2} ${y2}`;
+      }
       out += `<path class="schema-link" d="${path}"/><circle class="schema-dot" cx="${x1}" cy="${y1}" r="3"/><circle class="schema-dot" cx="${x2}" cy="${y2}" r="3"/>`;
     });
     Object.entries(dg.tables).forEach(([name, tb]) => {
@@ -417,11 +428,13 @@
     } catch (e) {
       renderResult({ error: e.message });
       if (st.cleared) return;
+      Spell.fizzle();
       hurtPlayer(Math.ceil(r.attack / 2), `Заклинание рассеялось (ошибка SQL). ${r.monster} пользуется моментом:`);
       return finishTurn();
     }
 
     const ev = evaluate(res, expected[r.id], r.ordered);
+    if (ev.exact) Spell.cast(); else Spell.fizzle();
     const verdict = document.createElement('div');
     verdict.className = 'verdict ' + (ev.exact ? 'ok' : 'bad');
     verdict.innerHTML = ev.exact
@@ -498,7 +511,10 @@
     if (next) state.rooms[next.id].unlocked = true;
 
     log('win', `${r.monster} повержен! +${rw.gold + bonus} золота, +${rw.xp} XP.`);
+    const oldRank = rankOf(p.level - levels.length);
     levels.forEach((l) => log('win', `Новый уровень: ${l}. Максимум здоровья +10.`));
+    const newRank = levels.length && rankOf(p.level) !== oldRank ? rankOf(p.level) : null;
+    if (newRank) log('win', `Ты достиг звания: ${newRank}.`);
     save();
     renderAll();
 
@@ -508,6 +524,7 @@
       `<li><span>Опыт</span><span>+${rw.xp} XP</span></li>`,
       heal ? `<li><span>Отдых у костра</span><span>+${heal} HP</span></li>` : '',
       levels.length ? `<li><span>Новый уровень</span><span>${p.level}</span></li>` : '',
+      newRank ? `<li><span>Новое звание</span><span>${newRank}</span></li>` : '',
       `<li><span>Трофей: ${r.trophy.name}${golden ? ' (золотой)' : ''}</span><span>${r.trophy.icon}</span></li>`,
     ].join('');
     showModal(`
@@ -515,7 +532,7 @@
       <h3>${r.monster} повержен</h3>
       <div class="stars" style="color:var(--torch);font-size:1.4rem;letter-spacing:.15em">${starStr(rw.stars)}</div>
       <ul class="loot">${items}</ul>
-      ${next ? `<button class="btn attack" id="modal-next" type="button">Дальше: ${next.monster}</button>` : '<p>Это был последний монстр демо-версии. Новые этажи скоро откроются.</p>'}
+      ${next ? `<button class="btn attack" id="modal-next" type="button">Дальше: ${next.monster}</button>` : '<p>Дракон пал. Подземелье зачищено, а ты прошёл путь от ученика до мастера заклинаний.</p>'}
       <button class="btn" id="modal-close" type="button">Остаться в комнате</button>
     `, false, () => next && switchRoom(next.id));
   }
@@ -562,6 +579,7 @@
     state.current = id;
     const r = room();
     $('sql').value = state.drafts[id] != null ? state.drafts[id] : r.starter;
+    Spell.update($('sql').value);
     if (!progress().cleared) log('info', `Ты входишь: ${r.floor}. Перед тобой ${r.monster}.`);
     save();
     renderAll();
@@ -580,6 +598,7 @@
     btn.textContent = 'Начать заново';
     state = freshState();
     $('sql').value = room().starter;
+    Spell.update($('sql').value);
     log('info', `Ты спускаешься в подземелье. Перед тобой ${room().monster}.`);
     save();
     renderAll();
@@ -604,6 +623,7 @@
       }
     });
     ta.addEventListener('input', () => {
+      Spell.update(ta.value);
       state.drafts[state.current] = ta.value;
       clearTimeout(bind.t);
       bind.t = setTimeout(save, 400);
@@ -614,6 +634,8 @@
     bind();
     const r = room();
     $('sql').value = state.drafts[r.id] != null ? state.drafts[r.id] : r.starter;
+    Spell.mount($('pentagram'));
+    Spell.update($('sql').value);
     if (!state.log.length) log('info', `Ты спускаешься в подземелье. Перед тобой ${r.monster}.`);
     renderAll();
     try {
@@ -621,6 +643,8 @@
       const db = new SQL.Database();
       db.run(D.schemaSql);
       pristine = db.export();
+      Spell.init($('pentagram'), new SQL.Database(pristine));
+      Spell.update($('sql').value);
       db.close();
       D.rooms.forEach((rm) => { expected[rm.id] = runSql(rm.solution); });
       $('run-btn').disabled = false;

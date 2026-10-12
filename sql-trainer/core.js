@@ -360,7 +360,7 @@
     const nx = P.nextRank(rk);
     $('home-avatar').src = Core.avatar(rk);
     $('home-avatar').alt = `Аватар: ${rk.name}`;
-    $('home-rank').innerHTML = esc(rk.name) + (Core.account ? ` <span class="home-name">«${esc(Core.account.name)}»</span>` : '');
+    $('home-rank').innerHTML = esc(rk.name) + (Core.account ? ` <span class="home-name">${esc(Core.account.name)}</span>` : '');
     $('home-next').textContent = nx ? `До звания «${nx.name}»: ${nx.xp - xp} XP` : `Высшее звание · ${xp} XP`;
     setBar($('home-xp-bar'), nx ? (xp - rk.xp) / (nx.xp - rk.xp) : 1);
 

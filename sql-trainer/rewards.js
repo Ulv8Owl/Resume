@@ -10,11 +10,12 @@
   const CONFIG = {
     dir: 'mp3',
     exts: ['mp3', 'mp4', 'webm'], // файл N ищется как mp3/N.mp3, затем mp3/N.mp4, затем mp3/N.webm
-    pool: 40, // сколько файлов лежит в папке: 1 … 40
-    max: 30, // больше этого числа видео получить нельзя
+    pool: 144, // сколько файлов лежит в папке: 1 … 144; больше этого числа видео получить нельзя
     playPrice: 50, // золото за одно воспроизведение в инвентаре
     playSeconds: 25, // одно воспроизведение ≈ столько секунд: короткое видео повторяется (15,2 с → 2 раза, 5 с → 5 раз)
     sqlEvery: 3, // в SQL видео дают залы 3, 6, 9 … 90
+    simLevels: [4, 7, 10, 13, 16, 19], // в режимах по 20 уровней видео дают эти уровни
+    dropChance: 0.1, // Теория («Знаю») и Поиск работы («Сделал»): шанс выпадения видео
   };
 
   function S() {
@@ -36,7 +37,6 @@
   function grant(source) {
     const r = S();
     if (r.sources[source]) return null;
-    if (r.order.length >= CONFIG.max) return null;
     const free = [];
     for (let i = 1; i <= CONFIG.pool; i++) if (!r.videos[i]) free.push(i);
     if (!free.length) return null;
@@ -48,15 +48,42 @@
   }
 
   const isSqlRewardRoom = (index) => (index + 1) % CONFIG.sqlEvery === 0;
+  const isSimRewardLevel = (index) => CONFIG.simLevels.includes(index + 1);
+
+  // Случайное выпадение: в Теории и Поиске работы. Возвращает номер видео или null.
+  function drop(mode) {
+    if (Math.random() >= CONFIG.dropChance) return null;
+    return grant(`drop:${mode}:${Date.now()}:${Math.random().toString(36).slice(2, 6)}`);
+  }
+
+  // Забрать видео обратно (например, когда игрок отменил действие, за которое оно выпало).
+  function revoke(id) {
+    const r = S();
+    if (!r.videos[id]) return;
+    delete r.videos[id];
+    r.order = r.order.filter((x) => x !== id);
+    Object.keys(r.sources).forEach((k) => { if (r.sources[k] === id) delete r.sources[k]; });
+  }
+
+  // Симуляторы сообщают свои уровни, чтобы уже пройденные уровни с наградой тоже принесли видео.
+  const sims = {};
+  const registerSim = (mode, levels) => { sims[mode] = levels; };
 
   // Залы, пройденные до появления наград, тоже приносят свои видео (с одним воспроизведением).
   function reconcile() {
     const D = window.DUNGEON;
     const rooms = Core.state.sql && Core.state.sql.rooms;
-    if (!D || !D.rooms || !rooms) return;
     let changed = false;
-    D.rooms.forEach((room) => {
-      if (isSqlRewardRoom(room.index) && rooms[room.id] && rooms[room.id].cleared && grant('sql:' + room.id)) changed = true;
+    if (D && D.rooms && rooms) {
+      D.rooms.forEach((room) => {
+        if (isSqlRewardRoom(room.index) && rooms[room.id] && rooms[room.id].cleared && grant('sql:' + room.id)) changed = true;
+      });
+    }
+    Object.entries(sims).forEach(([mode, levels]) => {
+      const done = (Core.state.sims && Core.state.sims[mode] && Core.state.sims[mode].levels) || {};
+      levels.forEach((l, i) => {
+        if (isSimRewardLevel(i) && done[l.id] && done[l.id].cleared && grant(`sim:${mode}:${l.id}`)) changed = true;
+      });
     });
     if (changed) Core.save();
   }
@@ -131,7 +158,7 @@
   function modalHtml(id) {
     return `<div class="reward-video">
       <button class="reward-video-btn" type="button" id="reward-video-btn" aria-label="Посмотреть видео-награду">🎬</button>
-      <p class="reward-video-note" id="reward-video-note">Видео-награда! Нажми, чтобы посмотреть сейчас, или закрой окно — видео будет ждать в инвентаре с одним бесплатным воспроизведением.</p>
+      <p class="reward-video-note" id="reward-video-note">Нажми, чтобы посмотреть сейчас, или закрой окно — видео будет ждать в инвентаре с одним бесплатным воспроизведением.</p>
     </div>`;
   }
   function bindModal(id) {
@@ -147,22 +174,41 @@
     }));
   }
 
+  // Окно выпавшей награды (Теория, Поиск работы). extra — строки добычи, например новое звание.
+  function showDrop(id, extra) {
+    Core.modal(`
+      <h3>Видео-награда!</h3>
+      ${extra && extra.length ? `<ul class="loot">${extra.join('')}</ul>` : ''}
+      ${modalHtml(id)}
+      <button class="btn" id="modal-close" type="button">Закрыть</button>`);
+    bindModal(id);
+  }
+
   // ---------- инвентарь ----------
+
+  let filter = 'all'; // all | fav
 
   const screen = document.querySelector('.screen[data-screen="inventory"]');
 
   function render() {
     if (!screen) return;
     const r = S();
-    const list = owned();
+    const all = owned();
+    const favCount = all.filter((id) => r.videos[id].fav).length;
+    if (filter === 'fav' && !favCount) filter = 'all';
+    const list = filter === 'fav' ? all.filter((id) => r.videos[id].fav) : all;
     screen.innerHTML = `
       <div class="sim-head">
         <button class="ghost-btn" type="button" data-home>← К выбору режима</button>
         <h2 class="sim-title"><span aria-hidden="true">🎒</span> Инвентарь</h2>
-        <span class="chip">🎬 <b>${list.length}</b> из ${CONFIG.max}</span>
+        <span class="chip">🎬 <b>${all.length}</b> из ${CONFIG.pool}</span>
         <span class="chip gold">🪙 <b>${Core.state.gold}</b></span>
       </div>
-      ${list.length ? `<div class="inv-grid">${list.map((id) => {
+      ${all.length ? `<div class="inv-filter" role="tablist">
+        <button type="button" role="tab" data-filter="all" class="${filter === 'all' ? 'on' : ''}" aria-selected="${filter === 'all'}">Все · ${all.length}</button>
+        <button type="button" role="tab" data-filter="fav" class="${filter === 'fav' ? 'on' : ''}" aria-selected="${filter === 'fav'}" ${favCount ? '' : 'disabled'}>★ Избранное · ${favCount}</button>
+      </div>` : ''}
+      ${all.length ? `<div class="inv-grid">${list.map((id) => {
         const v = r.videos[id];
         const has = v.plays > 0;
         return `<div class="inv-item${has ? '' : ' empty'}">
@@ -171,16 +217,25 @@
             <span class="inv-missing" hidden>файл не найден</span>
             ${has ? '<span class="inv-playicon" aria-hidden="true">▶</span>' : ''}
           </button>
+          <button class="inv-fav${v.fav ? ' on' : ''}" type="button" data-fav="${id}" aria-pressed="${!!v.fav}" title="${v.fav ? 'Убрать из избранного' : 'В избранное'}">${v.fav ? '★' : '☆'}</button>
           <div class="inv-row">
             <span class="inv-plays" title="Доступно воспроизведений">▶ <b>${v.plays}</b></span>
             <button class="inv-buy" type="button" data-buy="${id}" ${Core.state.gold >= CONFIG.playPrice ? '' : 'disabled'} title="Купить одно воспроизведение">＋ ${CONFIG.playPrice} 🪙</button>
           </div>
         </div>`;
-      }).join('')}</div>` : `<div class="panel inv-empty"><p>Пока пусто. Видео-награды дают каждые ${CONFIG.sqlEvery} зала в режиме SQL.</p></div>`}
+      }).join('')}</div>` : `<div class="panel inv-empty"><p>Пока пусто. Видео дают каждые ${CONFIG.sqlEvery} зала в SQL, уровни ${CONFIG.simLevels.join(', ')} в режимах по 20 уровней, а в Теории и Поиске работы оно выпадает с шансом ${Math.round(CONFIG.dropChance * 100)}%.</p></div>`}
       <p class="inv-note">Видео без воспроизведений показано чёрно-белым. Одно воспроизведение — ${CONFIG.playPrice} золота.</p>`;
     screen.querySelector('[data-home]').addEventListener('click', () => Core.go('home'));
     screen.querySelectorAll('[data-play]').forEach((b) => b.addEventListener('click', () => play(+b.dataset.play)));
     screen.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => buy(+b.dataset.buy)));
+    screen.querySelectorAll('[data-fav]').forEach((b) => b.addEventListener('click', () => {
+      const v = r.videos[+b.dataset.fav];
+      v.fav = !v.fav;
+      if (!v.fav) delete v.fav;
+      Core.save();
+      render();
+    }));
+    screen.querySelectorAll('[data-filter]').forEach((b) => b.addEventListener('click', () => { filter = b.dataset.filter; render(); }));
     list.forEach((id) => { if (thumbs[id]) paintThumb(id); else queueThumb(id); });
   }
 
@@ -259,5 +314,8 @@
     refresh: () => { reconcile(); render(); },
   });
 
-  window.Rewards = { CONFIG, grant, isSqlRewardRoom, reconcile, play, modalHtml, bindModal, loopsFor, count: () => S().order.length };
+  window.Rewards = {
+    CONFIG, grant, drop, revoke, registerSim, isSqlRewardRoom, isSimRewardLevel, reconcile,
+    play, modalHtml, bindModal, showDrop, loopsFor, count: () => S().order.length,
+  };
 })();

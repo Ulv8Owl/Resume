@@ -63,3 +63,15 @@
   .reward-video-btn { animation: none; }
 }
 .sim-level small.sim-level-reward { font-size: 0.62rem; letter-spacing: 0; }
+
+/* пароль от зашифрованных видео */
+.vplayer-lock { padding: 18px; background: var(--slab); border: 1px solid var(--seam); border-radius: var(--radius); }
+.vault-box { width: min(440px, 100%); }
+.vault-form { display: grid; gap: 10px; }
+.vault-form p { margin: 0; color: var(--parchment); }
+.vault-pass { background: var(--ink); color: var(--parchment); border: 1px solid var(--seam); border-radius: var(--radius); padding: 10px 12px; font: inherit; min-width: 0; }
+.vault-remember { display: flex; align-items: center; gap: 8px; color: var(--dust); font-size: var(--step--1); }
+.vault-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.vault-msg { color: var(--dust); font-size: var(--step--1); }
+.inv-vault:empty { display: none; }
+.inv-missing:not([hidden]) ~ .inv-playicon { display: none; }

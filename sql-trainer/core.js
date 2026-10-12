@@ -374,7 +374,7 @@
         <span class="mode-name">${esc(m.name)}</span>
         <span class="mode-tag">${esc(m.tagline)}</span>
         <span class="mode-meta">
-          <span>Пройдено: <b>${pr.done}</b> из ${pr.available} ${m.unit}</span>
+          <span>${pr.text || `Пройдено: <b>${pr.done}</b> из ${pr.available} ${m.unit}`}</span>
           <span class="bar xp"><i style="width:${Math.min(100, (earned / m.budget) * 100)}%"></i></span>
           <span>Опыт: ${earned} / ${m.budget} XP · ${Math.round(m.share * 100)}% всего опыта</span>
         </span>

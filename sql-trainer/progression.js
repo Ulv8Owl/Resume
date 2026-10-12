@@ -8,13 +8,16 @@
 
   // planned — сколько уровней (или карточек) в режиме. Опыт за уровень берётся из бюджета режима.
   const MODES = [
-    { id: 'theory',   name: 'Теория',              share: 0.14, planned: 160, unit: 'карточек', tagline: 'Вопросы собеседования по всем темам тестирования' },
-    { id: 'sql',      name: 'SQL',                 share: 0.28, planned: 90,  unit: 'залов',    tagline: 'Подземелье запросов: от SELECT до процедур' },
-    { id: 'swagger',  name: 'API · Swagger',       share: 0.11, planned: 20,  unit: 'уровней',  tagline: 'Читать документацию и пробовать эндпоинты' },
-    { id: 'postman',  name: 'API · Postman',       share: 0.13, planned: 20,  unit: 'уровней',  tagline: 'Запросы, окружения, авторизация, тесты' },
-    { id: 'charles',  name: 'API · Charles Proxy', share: 0.11, planned: 20,  unit: 'уровней',  tagline: 'Перехват и подмена трафика мобильного приложения' },
-    { id: 'devtools', name: 'DevTools',            share: 0.12, planned: 20,  unit: 'уровней',  tagline: 'Console, Network, Elements, Application: ищем причину бага' },
-    { id: 'git',      name: 'Git · GitLab CI',     share: 0.11, planned: 20,  unit: 'уровней',  tagline: 'Ветки, коммиты, merge request и пайплайны' },
+    { id: 'theory',   name: 'Теория',              share: 0.13, planned: 160, unit: 'карточек', tagline: 'Вопросы собеседования по всем темам тестирования' },
+    { id: 'sql',      name: 'SQL',                 share: 0.26, planned: 90,  unit: 'залов',    tagline: 'Подземелье запросов: от SELECT до процедур' },
+    { id: 'design',   name: 'Тест-дизайн',         share: 0.07, planned: 20,  unit: 'задач',    tagline: 'Классы эквивалентности, границы, таблицы решений, pairwise' },
+    { id: 'swagger',  name: 'API · Swagger',       share: 0.10, planned: 20,  unit: 'уровней',  tagline: 'Читать документацию и пробовать эндпоинты' },
+    { id: 'postman',  name: 'API · Postman',       share: 0.11, planned: 20,  unit: 'уровней',  tagline: 'Запросы, окружения, авторизация, тесты' },
+    { id: 'charles',  name: 'API · Charles Proxy', share: 0.09, planned: 20,  unit: 'уровней',  tagline: 'Перехват и подмена трафика мобильного приложения' },
+    { id: 'devtools', name: 'DevTools',            share: 0.10, planned: 20,  unit: 'уровней',  tagline: 'Console, Network, Elements, Application: ищем причину бага' },
+    { id: 'git',      name: 'Git · GitLab CI',     share: 0.09, planned: 20,  unit: 'уровней',  tagline: 'Ветки, коммиты, merge request и пайплайны' },
+    // Поиск работы — бесконечные задания: опыт копится без конца, но в звание засчитывается не больше бюджета режима.
+    { id: 'jobs',     name: 'Поиск работы',        share: 0.05, planned: 0,   unit: 'действий', tagline: 'Отклики, резюме рекрутёрам, каналы и компании' },
   ];
   MODES.forEach((m) => { m.budget = Math.round(TOTAL_XP * m.share); });
 

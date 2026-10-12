@@ -1,0 +1,54 @@
+/* Режим «Поиск работы». Токены цвета — из styles.css. */
+
+.jb-stats { display: flex; flex-wrap: wrap; gap: 8px; font-variant-numeric: tabular-nums; }
+.jb-stats .chip.done { color: var(--rune); border-color: color-mix(in srgb, var(--rune) 45%, var(--seam)); }
+.jb-cats { display: flex; flex-wrap: wrap; gap: 6px; }
+.jb-cat { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--seam);
+  background: var(--slab); color: var(--parchment); font: inherit; cursor: pointer; }
+.jb-cat small { min-width: 1.6em; padding: 1px 6px; border-radius: 999px; background: var(--slab-2); color: var(--dust); font-size: 0.7rem; text-align: center; }
+.jb-cat:hover { border-color: var(--torch); }
+.jb-cat.on { border-color: var(--torch); background: color-mix(in srgb, var(--torch) 16%, var(--slab)); }
+.jb-toast { margin: 0; padding: 8px 12px; border: 1px solid var(--rune); border-radius: var(--radius); color: var(--rune); }
+.jb-undo { margin-left: 8px; background: none; border: 0; padding: 0; color: var(--dust); text-decoration: underline; font: inherit; cursor: pointer; }
+
+.jb-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
+.jb-tasks { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.jb-task { display: grid; gap: 8px; align-content: start; padding: 14px 16px; background: var(--slab); border: 1px solid var(--seam); border-radius: var(--radius); }
+.jb-task.small { border-style: dashed; }
+.jb-task-head { display: flex; align-items: center; gap: 8px; }
+.jb-ico { font-size: 1.4rem; line-height: 1; }
+.jb-count { margin-left: auto; color: var(--torch); font-variant-numeric: tabular-nums; }
+.jb-hint { margin: 0; font-size: var(--step--1); color: var(--dust); }
+.jb-act { display: grid; gap: 8px; }
+.jb-input { background: var(--ink); color: var(--parchment); border: 1px solid var(--seam); border-radius: var(--radius); padding: 8px 10px; font: inherit; min-width: 0; }
+.jb-input:focus-visible { outline: 2px solid var(--torch); outline-offset: 1px; }
+.jb-err { margin: 0; color: var(--blood); font-size: var(--step--1); }
+
+.jb-side { display: grid; gap: 8px; }
+.jb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.jb-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: var(--radius); background: var(--slab-2); min-width: 0; }
+.jb-list li > span, .jb-list li > a { min-width: 0; overflow-wrap: anywhere; }
+.jb-list a { color: var(--parchment); }
+.jb-list a:hover { color: var(--torch); }
+.jb-list select { max-width: 48%; background: var(--ink); color: var(--parchment); border: 1px solid var(--seam); border-radius: var(--radius); padding: 3px 4px; font: inherit; font-size: 0.75rem; }
+.jb-companies { max-height: 520px; overflow-y: auto; }
+.jb-companies li.st-applied { box-shadow: inset 3px 0 0 var(--torch); }
+.jb-companies li.st-interview { box-shadow: inset 3px 0 0 #6ea8fe; }
+.jb-companies li.st-offer { box-shadow: inset 3px 0 0 var(--rune); }
+.jb-companies li.st-rejected { opacity: 0.6; }
+.jb-del { background: none; border: 0; color: var(--dust); cursor: pointer; }
+.jb-del:hover { color: var(--blood); }
+.jb-muted { margin: 0; color: var(--dust); font-size: var(--step--1); }
+.jb-recent-title { margin-top: 8px; }
+.jb-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.78rem; }
+.jb-log li { display: flex; justify-content: space-between; gap: 8px; color: var(--dust); }
+.jb-log li span { min-width: 0; overflow-wrap: anywhere; color: var(--parchment); }
+.jb-log time { flex: none; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 1100px) {
+  .jb-body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .jb-tasks { grid-template-columns: minmax(0, 1fr); }
+  .jb-cat { padding: 7px 10px; font-size: var(--step--1); }
+}

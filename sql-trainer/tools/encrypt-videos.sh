@@ -29,24 +29,39 @@ enc() { openssl enc -aes-256-ctr -pbkdf2 -iter 100000 -md sha256 -salt -pass env
 printf 'qa-academy-ok' | enc | { printf 'QAVault.check("'; base64 -w0; printf '");\n'; } > "$DST/check.js"
 
 n=0
+max=0
+skipped=()
+declare -A seen=()
 for f in "$SRC"/*; do
   [ -f "$f" ] || continue
   name=$(basename "$f")
   id=${name%.*}
   ext=${name##*.}
   ext=${ext,,}
-  [[ "$id" =~ ^[0-9]+$ ]] || continue
-  case "$ext" in mp3|mp4|m4v|mov|webm) ;; *) continue ;; esac
+  # имя должно быть «номер.расширение», например 64.mp4
+  if [[ "$name" != *.* || ! "$id" =~ ^[0-9]+$ ]]; then skipped+=("$name — имя должно быть вида 64.mp4"); continue; fi
+  case "$ext" in mp3|mp4|m4v|mov|webm) ;; *) skipped+=("$name — неподходящее расширение"); continue ;; esac
+  num=$((10#$id))
+  if [ -n "${seen[$num]:-}" ]; then skipped+=("$name — номер $num уже занят файлом ${seen[$num]}"); continue; fi
+  seen[$num]=$name
+  [ "$num" -gt "$max" ] && max=$num
   {
-    printf 'QAVault.put(%s,"%s","' "$((10#$id))" "$ext"
+    printf 'QAVault.put(%s,"%s","' "$num" "$ext"
     enc < "$f" | base64 -w0
     printf '");\n'
   } > "$DST/$id.js.tmp"
-  mv "$DST/$id.js.tmp" "$DST/$((10#$id)).js"
+  mv "$DST/$id.js.tmp" "$DST/$num.js"
   n=$((n + 1))
   printf '\rЗашифровано: %d' "$n"
 done
 echo
+if [ ${#skipped[@]} -gt 0 ]; then
+  echo 'Пропущены файлы:'
+  printf '  %s\n' "${skipped[@]}"
+fi
+missing=()
+for ((i = 1; i <= max; i++)); do [ -n "${seen[$i]:-}" ] || missing+=("$i"); done
+if [ ${#missing[@]} -gt 0 ]; then echo "Нет видео с номерами: ${missing[*]}"; fi
 
 # Зашифрованные файлы должны читаться браузером, то есть твоим пользователем, а не root.
 owner=${SUDO_USER:-$(id -un)}

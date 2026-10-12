@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+Runic&family=Pixelify+Sans:wght@400;500&family=Rubik:ital,wght@0,400;0,500;1,400&display=swap">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="academy.css">
+<link rel="stylesheet" href="rewards.css">
 <link rel="stylesheet" href="sims/swagger.css">
 <link rel="stylesheet" href="sims/postman.css">
 <link rel="stylesheet" href="sims/charles.css">
@@ -32,6 +33,7 @@
       </div>
       <span class="chip gold" title="Золото">🪙 <b id="gold-text">0</b></span>
       <span class="chip sync guest" id="sync-chip">Гость</span>
+      <button class="gear" type="button" data-go="inventory" title="Инвентарь" aria-label="Инвентарь">🎒</button>
       <button class="gear" id="settings-btn" type="button" title="Настройки" aria-label="Настройки">⚙</button>
     </div>
   </header>
@@ -133,6 +135,7 @@
   <section class="screen" data-screen="charles" hidden></section>
   <section class="screen" data-screen="devtools" hidden></section>
   <section class="screen" data-screen="git" hidden></section>
+  <section class="screen" data-screen="inventory" hidden></section>
 </div>
 
 <section class="gate" id="auth-gate" hidden></section>
@@ -142,6 +145,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
 <script src="progression.js"></script>
 <script src="core.js"></script>
+<script src="rewards.js"></script>
 <script src="data.js"></script>
 <script src="rooms-act1.js"></script>
 <script src="rooms-act2.js"></script>

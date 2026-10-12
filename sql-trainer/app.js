@@ -65,7 +65,8 @@
       b.disabled = !st.unlocked;
       b.title = st.unlocked ? `${r.floor}: ${r.monster} · ${r.topic}` : `${r.floor}: закрыт`;
       b.innerHTML = `<span class="tile-sprite">${st.unlocked ? r.sprite : '🔒'}</span><span class="tile-num">${r.index + 1}</span>` +
-        `<span class="tile-stars">${st.cleared ? starStr(st.stars) : r.boss ? 'босс' : '&nbsp;'}</span>`;
+        `<span class="tile-stars">${st.cleared ? starStr(st.stars) : r.boss ? 'босс' : '&nbsp;'}</span>` +
+        (Rewards.isSqlRewardRoom(r.index) && !st.cleared ? '<span class="tile-reward" title="Видео-награда">🎬</span>' : '');
       b.addEventListener('click', () => switchRoom(r.id));
       tiles.appendChild(b);
     });
@@ -109,7 +110,9 @@
     const rw = rewardFor(r, st);
     $('reward').innerHTML = st.cleared
       ? `<span class="stars">${starStr(st.stars)}</span><span class="muted">Зал зачищен</span>`
-      : `<span>Добыча:</span><span class="chip gold">🪙 <b>${rw.gold}</b></span><span class="chip">✦ ${rw.xp} XP</span><span class="stars">${starStr(rw.stars)}</span>` +
+      : `<span>Добыча:</span><span class="chip gold">🪙 <b>${rw.gold}</b></span><span class="chip">✦ ${rw.xp} XP</span>` +
+        (Rewards.isSqlRewardRoom(r.index) ? '<span class="chip" title="Случайное видео из тех, что ещё не получены">🎬 видео</span>' : '') +
+        `<span class="stars">${starStr(rw.stars)}</span>` +
         (rw.mult < 1 ? `<span class="muted">подсказки срезали золото до ${Math.round(rw.mult * 100)}%</span>` : '');
   }
 
@@ -414,6 +417,7 @@
     }
     const next = D.rooms[r.index + 1];
     if (next) S().rooms[next.id].unlocked = true;
+    const video = Rewards.isSqlRewardRoom(r.index) ? Rewards.grant('sql:' + r.id) : null;
 
     log('win', `Победа в зале ${r.index + 1}! +${rw.gold + bonus} золота, +${rw.xp} XP.`);
     if (up.rank) log('win', `Ты достиг звания: ${up.rank.name}.`);
@@ -426,6 +430,7 @@
       bonus ? `<li><span>Без единой царапины</span><span>+${bonus}</span></li>` : `<li class="minus"><span>Получено ран</span><span>${st.wounds}</span></li>`,
       `<li><span>Опыт</span><span>+${rw.xp} XP</span></li>`,
       heal ? `<li><span>Отдых у костра</span><span>+${heal} HP</span></li>` : '',
+      video ? '<li class="rank-up"><span>Видео-награда</span><span>🎬</span></li>' : '',
     ].concat(up.lines).join('');
     const finale = !next
       ? '<p>Дракон пал. Подземелье запросов зачищено.</p>'
@@ -437,10 +442,12 @@
       <p class="modal-tip">${esc(r.monster)} больше не стоит у тебя на пути.</p>
       <div class="modal-stars">${starStr(rw.stars)}</div>
       <ul class="loot">${items}</ul>
+      ${video ? Rewards.modalHtml(video) : ''}
       ${finale}${nextAct}
       ${next ? `<button class="btn attack" id="modal-next" type="button">Дальше: ${esc(next.monster)}</button>` : ''}
       <button class="btn" id="modal-close" type="button">Остаться в зале</button>
     `, { onNext: () => next && switchRoom(next.id), onClose: () => $('sql').focus() });
+    if (video) Rewards.bindModal(video);
   }
 
   function defeat() {

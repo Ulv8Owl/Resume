@@ -11,7 +11,8 @@
   --rune: #5cc8b5;         /* success, mana */
   --ink: #120f17;          /* text on accent */
 
-  --font-display: "Pixelify Sans", "Rubik", system-ui, sans-serif;
+  --font-display: "Rubik", system-ui, sans-serif;
+  --font-pixel: "Pixelify Sans", "Rubik", system-ui, sans-serif; /* только для названия «Академия QA» */
   --font-body: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-rune: "Noto Sans Runic", "Segoe UI Historic", "Segoe UI Symbol", serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -43,7 +44,7 @@ button:focus-visible, textarea:focus-visible, .schema-table:focus-visible { outl
 
 /* ---------- HUD ---------- */
 .hud { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
-.brand { font-family: var(--font-display); font-size: var(--step-2); letter-spacing: 0.02em; margin: 0; color: var(--torch); text-wrap: balance; }
+.brand { font-family: var(--font-pixel); font-size: var(--step-2); letter-spacing: 0.02em; margin: 0; color: var(--torch); text-wrap: balance; }
 .brand small { display: block; font-family: var(--font-body); font-size: var(--step--1); color: var(--dust); letter-spacing: 0.04em; }
 .stats { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-left: auto; font-variant-numeric: tabular-nums; }
 .stat { display: grid; gap: 3px; min-width: 120px; }

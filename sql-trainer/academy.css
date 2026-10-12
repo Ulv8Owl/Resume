@@ -357,7 +357,7 @@ body.gated .shell { visibility: hidden; }
 .gate-card { width: min(420px, 100%); display: grid; gap: 12px; justify-items: center; text-align: center; padding: 26px 24px;
   background: var(--slab); border: 1px solid var(--seam); border-radius: 14px; box-shadow: 0 24px 60px color-mix(in srgb, var(--ink) 70%, transparent); }
 .gate-avatar { width: 120px; height: 120px; border-radius: 50%; border: 3px solid var(--torch); object-fit: cover; box-shadow: 0 0 30px color-mix(in srgb, var(--torch) 30%, transparent); }
-.gate-title { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 1.9rem; color: var(--torch); }
+.gate-title { margin: 0; font-family: var(--font-pixel); font-weight: 500; font-size: 1.9rem; color: var(--torch); }
 .gate-sub { margin: 0; color: var(--dust); font-size: var(--step--1); }
 .gate-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; border: 1px solid var(--seam); border-radius: var(--radius); overflow: hidden; }
 .gate-tabs button { background: var(--slab-2); border: 0; padding: 9px; color: var(--dust); font-weight: 500; }

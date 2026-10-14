@@ -11,7 +11,10 @@
 <link rel="stylesheet" href="academy.css">
 <link rel="stylesheet" href="rewards.css">
 <link rel="stylesheet" href="sims/design.css">
+<link rel="stylesheet" href="sims/jmeter.css">
 <link rel="stylesheet" href="jobs.css">
+<link rel="stylesheet" href="town.css">
+<link rel="stylesheet" href="sql-assist.css">
 <link rel="stylesheet" href="sims/swagger.css">
 <link rel="stylesheet" href="sims/postman.css">
 <link rel="stylesheet" href="sims/charles.css">
@@ -35,6 +38,7 @@
       </div>
       <span class="chip gold" title="Золото">🪙 <b id="gold-text">0</b></span>
       <span class="chip sync guest" id="sync-chip">Гость</span>
+      <button class="gear hud-teacher" type="button" data-teacher id="hud-teacher" title="Наставник: ежедневное задание" aria-label="Наставник: ежедневное задание"><img src="Avatars/Teacher.jpeg" alt=""><span class="teacher-count"></span></button>
       <button class="gear" type="button" data-go="inventory" title="Инвентарь" aria-label="Инвентарь">🎒</button>
       <button class="gear" id="settings-btn" type="button" title="Настройки" aria-label="Настройки">⚙</button>
     </div>
@@ -50,8 +54,11 @@
       </div>
     </div>
     <div class="home-grid">
-      <p class="eyebrow home-label">Выбери режим</p>
-      <div class="modes" id="modes"></div>
+      <div class="town" id="town"></div>
+      <details class="home-list" id="home-list">
+        <summary class="eyebrow home-label">Все режимы списком</summary>
+        <div class="modes" id="modes"></div>
+      </details>
     </div>
   </section>
 
@@ -139,6 +146,7 @@
   <section class="screen" data-screen="git" hidden></section>
   <section class="screen" data-screen="design" hidden></section>
   <section class="screen" data-screen="jobs" hidden></section>
+  <section class="screen" data-screen="jmeter" hidden></section>
   <section class="screen" data-screen="inventory" hidden></section>
 </div>
 
@@ -157,6 +165,7 @@
 <script src="judge.js"></script>
 <script src="spell.js"></script>
 <script src="app.js"></script>
+<script src="sql-assist.js"></script>
 <script src="theory-data.js"></script>
 <script src="theory-cards/types.js"></script>
 <script src="theory-cards/design.js"></script>
@@ -182,7 +191,10 @@
 <script src="sims/devtools.js"></script>
 <script src="sims/git.js"></script>
 <script src="sims/design.js"></script>
+<script src="sims/jmeter.js"></script>
 <script src="jobs.js"></script>
+<script src="teacher.js"></script>
+<script src="town.js"></script>
 <script>window.Core.start();</script>
 </body>
 </html>

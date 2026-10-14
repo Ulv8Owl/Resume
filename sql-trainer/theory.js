@@ -64,6 +64,15 @@
     screen.querySelectorAll('[data-topic]:not([disabled])').forEach((b) => b.addEventListener('click', () => startTopic(T.topics.find((t) => t.id === b.dataset.topic))));
   }
 
+  // Текст ответа: абзацы через пустую строку, строки «• …» — пункты списка.
+  function rich(text) {
+    return String(text).split(/\n\s*\n/).map((block) => {
+      const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+      if (lines.length && lines.every((l) => l.startsWith('• '))) return `<ul>${lines.map((l) => `<li>${esc(l.slice(2))}</li>`).join('')}</ul>`;
+      return lines.map((l) => (l.startsWith('• ') ? `<ul><li>${esc(l.slice(2))}</li></ul>` : `<p>${esc(l)}</p>`)).join('');
+    }).join('');
+  }
+
   // Колода: сначала карточки, которые ещё не знаешь. В пройденной теме — повторение всех карточек.
   function startTopic(topic) {
     const th = S();
@@ -103,7 +112,9 @@
       const list = card.points.map((p, i) => session.phase === 'check'
         ? `<label class="pt"><input type="checkbox" data-pt="${i}"> <span>${esc(p)}</span></label>`
         : `<li>${esc(p)}</li>`).join('');
-      backContent = `<p class="card-label">Ответ</p><p class="card-answer">${esc(card.answer)}</p>
+      backContent = `<p class="card-label">Ответ</p><div class="card-answer">${rich(card.answer)}</div>
+        ${card.example ? `<p class="card-label">Пример</p><div class="card-answer card-example">${rich(card.example)}</div>` : ''}
+        ${card.terms && card.terms.length ? `<p class="card-label">Словарик</p><dl class="card-terms">${card.terms.map(([t, d]) => `<dt>${esc(t)}</dt><dd>${esc(d)}</dd>`).join('')}</dl>` : ''}
         <p class="card-label">${session.phase === 'check' ? 'Отметь пункты, которые ты назвал в своём ответе' : 'Ключевые пункты'}</p>
         ${session.phase === 'check' ? `<div class="pts">${list}</div>` : `<ul class="pts">${list}</ul>`}`;
     }
@@ -175,6 +186,7 @@
     const gold = session.review ? 0 : Math.round(CARD_GOLD * HINT_MULT[session.hints] * combo);
     cs.known = true;
     cs.box = Math.min(cs.box + 1, 5);
+    Core.track('theory-card', { id: card.id });
     session.streak++;
     S().bestStreak = Math.max(S().bestStreak || 0, session.streak);
     Core.state.gold += gold;

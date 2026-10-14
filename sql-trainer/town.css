@@ -1,0 +1,91 @@
+/* Башня Академии (главное меню) и наставник. Токены цвета — из styles.css. */
+
+/* ---------- главный экран ---------- */
+.home .home-avatar { width: 150px; height: 150px; }
+.home .home-hero { padding: 16px 20px; }
+.home-grid { grid-template-columns: minmax(300px, 560px) minmax(0, 1fr); align-items: start; }
+.home-list { display: grid; gap: 8px; align-content: start; }
+.home-list > summary { cursor: pointer; list-style: none; padding: 6px 0; }
+.home-list > summary::-webkit-details-marker { display: none; }
+.home-list > summary::before { content: '▸ '; }
+.home-list[open] > summary::before { content: '▾ '; }
+.home-list[open] > .modes { margin-top: 8px; }
+.home-list .modes { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.home-list .mode-card { padding: 10px 12px; }
+.home-list .mode-icon { font-size: 1.6rem; }
+
+/* ---------- башня ---------- */
+.town-map { position: relative; width: 100%; border-radius: 14px; overflow: hidden; border: 1px solid var(--seam);
+  box-shadow: 0 18px 50px color-mix(in srgb, #000 55%, transparent); background: #1b1530; }
+.town-img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+.town-spot { position: absolute; display: grid; place-items: end center; padding: 0 0 4%; background: transparent; border: 2px solid transparent;
+  border-radius: 10px; cursor: pointer; transition: background 0.2s, border-color 0.2s, box-shadow 0.2s; }
+.town-spot:hover, .town-spot:focus-visible { background: color-mix(in srgb, var(--torch) 14%, transparent); border-color: var(--torch);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--torch) 45%, transparent), inset 0 0 18px color-mix(in srgb, var(--torch) 30%, transparent); outline: none; }
+.town-label { display: inline-grid; grid-template-columns: auto auto; align-items: center; gap: 0 5px; max-width: 100%;
+  padding: 3px 8px 4px; border-radius: 8px; background: color-mix(in srgb, #120d22 82%, transparent); border: 1px solid color-mix(in srgb, var(--torch) 45%, transparent);
+  color: #f6ecd8; font-size: 0.78rem; line-height: 1.2; white-space: nowrap; pointer-events: none; text-align: left; }
+.tl-short { display: none; }
+.town-label small { grid-column: 1 / -1; color: #cbbfa6; font-size: 0.66rem; font-variant-numeric: tabular-nums; }
+.town-bar { grid-column: 1 / -1; display: block; height: 3px; margin-top: 2px; border-radius: 2px; background: color-mix(in srgb, #fff 18%, transparent); overflow: hidden; }
+.town-bar > i { display: block; height: 100%; background: var(--torch); }
+.town-spot:hover .town-label, .town-spot:focus-visible .town-label { border-color: var(--torch); }
+
+/* ---------- наставник ---------- */
+.modal:has(.teacher-dlg) { width: min(560px, 100%); }
+.town-teacher, .hud-teacher { position: relative; padding: 0; overflow: visible; }
+.town-teacher { position: absolute; left: 3%; bottom: 2.5%; width: 19%; aspect-ratio: 1; border-radius: 50%; border: 3px solid var(--torch);
+  background: #000; cursor: pointer; box-shadow: 0 0 22px color-mix(in srgb, var(--torch) 50%, transparent); }
+.town-teacher img, .hud-teacher img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+.hud-teacher { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--torch); }
+.teacher-count { position: absolute; right: -6px; bottom: -6px; min-width: 22px; padding: 1px 5px; border-radius: 999px; background: var(--slab);
+  border: 1px solid var(--torch); color: var(--parchment); font-size: 0.65rem; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.4; }
+.town-teacher .teacher-count { font-size: 0.75rem; }
+[data-teacher][data-badge="new"]::after, [data-teacher][data-badge="reward"]::after { content: '!'; position: absolute; top: -4px; right: -4px;
+  display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--blood); color: #fff; font-weight: 700; font-size: 0.8rem;
+  animation: teacher-ping 1.4s ease-in-out infinite; }
+[data-teacher][data-badge="reward"]::after { content: '🎁'; background: var(--rune); }
+@keyframes teacher-ping { 50% { transform: scale(1.18); } }
+
+.teacher-dlg { display: grid; gap: 12px; text-align: left; }
+.teacher-head { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: center; }
+.teacher-portrait { width: 96px; height: 96px; border-radius: 50%; border: 3px solid var(--torch); object-fit: cover; }
+.teacher-say { margin: 4px 0 0; font-size: var(--step-0); line-height: 1.5; color: var(--parchment); }
+.teacher-tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.teacher-tasks li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 8px 10px;
+  border-radius: var(--radius); background: var(--slab-2); border: 1px solid var(--seam); }
+.teacher-tasks li.done { border-color: color-mix(in srgb, var(--rune) 50%, var(--seam)); }
+.teacher-tasks li.done .tt-text { color: var(--dust); text-decoration: line-through; }
+.tt-mark { color: var(--torch); text-align: center; }
+.teacher-tasks li.done .tt-mark { color: var(--rune); }
+.tt-text small { color: var(--dust); }
+.tt-prog { font-variant-numeric: tabular-nums; color: var(--parchment); }
+.tt-go { padding: 4px 10px; }
+.teacher-talk { display: flex; flex-wrap: wrap; gap: 6px; }
+.teacher-talk .ghost-btn { font-size: var(--step--1); }
+
+.teacher-toast { position: fixed; right: 16px; bottom: 16px; z-index: 25; display: flex; align-items: center; gap: 10px; max-width: min(360px, calc(100vw - 32px));
+  padding: 8px 14px 8px 8px; border-radius: 999px; border: 1px solid var(--torch); background: var(--slab); color: var(--parchment); font: inherit;
+  text-align: left; box-shadow: 0 10px 30px color-mix(in srgb, #000 50%, transparent); cursor: pointer; }
+.teacher-toast img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: none; }
+
+@media (max-width: 1100px) {
+  .home-grid { grid-template-columns: minmax(0, 1fr); }
+  .town { max-width: 560px; width: 100%; justify-self: center; }
+}
+@media (max-width: 720px) {
+  .home .home-hero { grid-template-columns: auto minmax(0, 1fr); justify-items: start; text-align: left; gap: 14px; padding: 12px 14px; }
+  .home .home-avatar { width: 72px; height: 72px; border-width: 2px; }
+  .home .home-rank { font-size: 1.35rem; }
+  .tl-full { display: none; }
+  .tl-short { display: inline; }
+  .town-label { font-size: 0.62rem; padding: 2px 5px 3px; gap: 0 3px; }
+  .town-label small { font-size: 0.55rem; }
+  .teacher-head { grid-template-columns: 64px minmax(0, 1fr); }
+  .teacher-portrait { width: 64px; height: 64px; }
+  .teacher-tasks li { grid-template-columns: 18px minmax(0, 1fr) auto; }
+  .tt-go { grid-column: 2 / -1; justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-teacher]::after { animation: none !important; }
+}

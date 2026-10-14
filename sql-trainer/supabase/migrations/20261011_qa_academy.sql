@@ -133,6 +133,41 @@ as $$
      and not exists (select 1 from public.qa_progress where nickname_key = lower(btrim(p_name)));
 $$;
 
+-- Смена никнейма: меняется ник в прогрессе и отображаемое имя в Auth. Почта для входа не меняется (она из id),
+-- а вход по никнейму сразу работает с новым именем: qa_login_email ищет по qa_progress.
+create or replace function public.qa_rename(p_name text)
+returns json
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := auth.uid();
+begin
+  if v_id is null then
+    raise exception 'not_signed_in';
+  end if;
+  if not public.qa_valid_name(p_name) then
+    raise exception 'bad_name';
+  end if;
+  if exists (select 1 from public.qa_progress where nickname_key = lower(btrim(p_name)) and user_id <> v_id) then
+    raise exception 'name_taken';
+  end if;
+  update public.qa_progress set nickname = btrim(p_name) where user_id = v_id;
+  if not found then
+    raise exception 'not_signed_in';
+  end if;
+  update auth.users
+     set raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb)
+           || jsonb_build_object('display_name', btrim(p_name), 'nickname', btrim(p_name)),
+         updated_at = now()
+   where id = v_id;
+  return json_build_object('name', btrim(p_name));
+exception
+  when unique_violation then raise exception 'name_taken';
+end;
+$$;
+
 -- Перенос уже зарегистрированных магов: тот же пароль (bcrypt-хэш переносится как есть) и тот же прогресс.
 do $$
 declare
@@ -159,3 +194,5 @@ end $$;
 revoke all on function public.qa_create_auth_user(uuid, text, text, timestamptz), public.qa_auth_email_for(uuid) from public, anon, authenticated;
 revoke all on function public.qa_valid_name(text), public.qa_register(text, text), public.qa_login_email(text), public.qa_name_available(text) from public;
 grant execute on function public.qa_valid_name(text), public.qa_register(text, text), public.qa_login_email(text), public.qa_name_available(text) to anon, authenticated;
+revoke all on function public.qa_rename(text) from public, anon;
+grant execute on function public.qa_rename(text) to authenticated;

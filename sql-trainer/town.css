@@ -89,3 +89,8 @@
 @media (prefers-reduced-motion: reduce) {
   [data-teacher]::after { animation: none !important; }
 }
+.town-spot.compact { padding-bottom: 3%; }
+.town-spot.compact .town-label { font-size: 0.72rem; padding: 2px 6px 3px; }
+@media (max-width: 720px) {
+  .town-spot.compact .town-label { font-size: 0.56rem; padding: 2px 3px; gap: 0 2px; }
+}

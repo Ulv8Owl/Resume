@@ -381,3 +381,11 @@ body.gated .shell { visibility: hidden; }
 .gate-foot { margin: 0; font-size: 0.75rem; color: var(--dust); }
 .gate-guest { background: none; border: 0; color: var(--dust); font-size: 0.75rem; text-decoration: underline; text-underline-offset: 3px; }
 .gate-guest:hover { color: var(--parchment); }
+
+/* смена никнейма в настройках */
+.rename-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.rename-form label { display: grid; gap: 4px; font-size: var(--step--1); color: var(--dust); }
+.rename-form input { background: var(--ink); color: var(--parchment); border: 1px solid var(--seam); border-radius: var(--radius); padding: 8px 10px; font: inherit; min-width: 0; }
+.rename-status { grid-column: 1 / -1; }
+.rename-status.ok { color: var(--rune); }
+.rename-status.bad { color: var(--blood); }

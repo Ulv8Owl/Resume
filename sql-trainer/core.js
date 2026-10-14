@@ -19,6 +19,7 @@
     bad_credentials: 'Неверный никнейм или пароль.',
     bad_name: 'Никнейм: от 2 до 32 символов — буквы, цифры, пробел, «-» и «_».',
     bad_password: 'Пароль: от 6 до 72 символов.',
+    not_signed_in: 'Сначала войди в аккаунт.',
   };
   const OFFLINE_MSG = 'Облако недоступно: нет связи с Supabase. Прогресс сохраняется в этом браузере и уйдёт в облако при следующем сохранении со связью.';
 
@@ -223,6 +224,16 @@
     return how;
   };
 
+  // Смена никнейма: база проверяет правила и уникальность. Вход дальше — по новому имени.
+  Core.rename = async function rename(name) {
+    const res = await rpc('qa_rename', { p_name: name.trim() });
+    Core.account.name = res.name;
+    Core.lastName = res.name;
+    writeLocal();
+    Core.refresh();
+    return res.name;
+  };
+
   let loggingOut = false;
   Core.logout = async function logout() {
     clearTimeout(cloudTimer);
@@ -405,6 +416,11 @@
           <p class="acc-line">${acc
             ? `Ты вошёл как <b>${esc(acc.name)}</b>. Прогресс сохраняется в облаке, а при следующем заходе игра войдёт сама.`
             : 'Ты играешь без аккаунта: прогресс хранится только в этом браузере. Создай мага, чтобы продолжать с любого устройства.'}</p>
+          ${acc ? `<form class="rename-form" id="rename-form" novalidate>
+            <label>Никнейм<input id="rename-input" maxlength="32" autocomplete="username" value="${esc(acc.name)}"></label>
+            <button class="btn" type="submit">Сменить</button>
+            <p class="acc-line rename-status" id="rename-status" aria-live="polite">Входить нужно будет по новому никнейму, пароль прежний.</p>
+          </form>` : ''}
           <div class="acc-actions">${acc
             ? '<button class="btn" id="logout-btn" type="button">Выйти из аккаунта</button>'
             : '<button class="btn attack" id="open-gate-btn" type="button">Войти или создать мага</button>'}</div>
@@ -416,6 +432,22 @@
         </div>
         <button class="btn" id="modal-close" type="button">Закрыть</button>
       </div>`);
+    const rf = $('rename-form');
+    if (rf) rf.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const status = $('rename-status');
+      const name = $('rename-input').value.trim();
+      const set = (text, cls) => { status.textContent = text; status.className = 'acc-line rename-status ' + (cls || ''); };
+      if (name === acc.name) return set('Это и так твой никнейм.');
+      if (!NAME_RE.test(name)) return set('Никнейм: от 2 до 32 символов — буквы, цифры, пробел, «-» и «_».', 'bad');
+      set('Меняю…');
+      try {
+        const n = await Core.rename(name);
+        set(`Готово! Теперь ты «${n}». Входи по этому никнейму.`, 'ok');
+      } catch (err) {
+        set(err.message, 'bad');
+      }
+    });
     const lo = $('logout-btn');
     if (lo) lo.addEventListener('click', () => { close(); Core.logout(); });
     const og = $('open-gate-btn');

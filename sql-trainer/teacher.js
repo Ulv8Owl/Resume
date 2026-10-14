@@ -213,8 +213,9 @@
 
   // Утром — новое задание: наставник сам зовёт, когда игрок впервые за день открывает главный экран.
   function greetIfNeeded() {
+    if (!Core.ready || !document.getElementById('auth-gate').hidden || Core.modalOpen()) return;
     const d = S();
-    if (d.greeted || Core.modalOpen() || !document.getElementById('auth-gate').hidden) return;
+    if (d.greeted) return;
     open();
   }
 

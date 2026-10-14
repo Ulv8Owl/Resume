@@ -196,3 +196,39 @@ revoke all on function public.qa_valid_name(text), public.qa_register(text, text
 grant execute on function public.qa_valid_name(text), public.qa_register(text, text), public.qa_login_email(text), public.qa_name_available(text) to anon, authenticated;
 revoke all on function public.qa_rename(text) from public, anon;
 grant execute on function public.qa_rename(text) to authenticated;
+
+-- Страховка: копия прежней версии прогресса перед изменением (не чаще раза в час на игрока).
+-- Таблица закрыта RLS без политик: из браузера её не прочитать; восстановление — вручную из SQL Editor.
+create table if not exists public.qa_progress_backup (
+  id         bigint generated always as identity primary key,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  state      jsonb not null,
+  saved_at   timestamptz not null default now()
+);
+create index if not exists qa_progress_backup_user on public.qa_progress_backup (user_id, saved_at desc);
+alter table public.qa_progress_backup enable row level security;
+revoke all on public.qa_progress_backup from anon, authenticated;
+
+create or replace function public.qa_progress_keep_backup()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if old.state is distinct from new.state and old.state <> '{}'::jsonb
+     and not exists (select 1 from public.qa_progress_backup b where b.user_id = old.user_id and b.saved_at > now() - interval '1 hour') then
+    insert into public.qa_progress_backup (user_id, state) values (old.user_id, old.state);
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.qa_progress_keep_backup() from public, anon, authenticated;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'qa_progress_keep_backup') then
+    create trigger qa_progress_keep_backup before update of state on public.qa_progress
+      for each row execute function public.qa_progress_keep_backup();
+  end if;
+end $$;

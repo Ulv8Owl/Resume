@@ -187,15 +187,100 @@
   }
 
   function isEmpty(st) { return !st || !st.updatedAt; }
+  // Облако и браузер не перезаписывают друг друга, а объединяются: всё, что пройдено хотя бы в одном
+  // сохранении, остаётся пройденным. Иначе пустое, но «более свежее» сохранение могло затереть весь прогресс.
   function adopt(cloudState) {
     if (isEmpty(cloudState)) { pushCloud(); return 'pushed'; }
-    if (cloudState.updatedAt >= (Core.state.updatedAt || 0)) {
-      Core.state = Object.assign(freshState(), cloudState);
-      return 'pulled';
+    const localEmpty = isEmpty(Core.state);
+    Core.state = localEmpty ? Object.assign(freshState(), cloudState) : mergeStates(Core.state, cloudState);
+    if (!localEmpty) {
+      Core.state.updatedAt = Date.now();
+      writeLocal();
+      pushCloud();
+      return 'merged';
     }
-    pushCloud();
-    return 'pushed';
+    return 'pulled';
   }
+
+  // ---------- слияние двух сохранений ----------
+  const num = (a, b) => Math.max(+a || 0, +b || 0);
+  function mergeMap(a, b, fn) {
+    a = a || {};
+    b = b || {};
+    const out = {};
+    new Set(Object.keys(a).concat(Object.keys(b))).forEach((k) => {
+      out[k] = !(k in a) ? b[k] : !(k in b) ? a[k] : fn(a[k], b[k], k);
+    });
+    return out;
+  }
+  // Зал или уровень: пройденный важнее непройденного, из двух пройденных — с бо́льшим числом звёзд.
+  function mergeStage(x, y) {
+    if (!!x.cleared !== !!y.cleared) return Object.assign({}, x.cleared ? x : y, { unlocked: true });
+    if (x.cleared) return Object.assign({}, num(x.stars, 0) >= num(y.stars, 0) ? x : y, { unlocked: true });
+    const out = Object.assign({}, x, { hints: num(x.hints, y.hints), best: num(x.best, y.best), wounds: num(x.wounds, y.wounds) });
+    if ('unlocked' in x || 'unlocked' in y) out.unlocked = !!(x.unlocked || y.unlocked);
+    if (x.done || y.done) out.done = Array.from(new Set((x.done || []).concat(y.done || [])));
+    return out;
+  }
+  function mergeStates(a, b) {
+    const newer = (a.updatedAt || 0) >= (b.updatedAt || 0) ? a : b;
+    const older = newer === a ? b : a;
+    const out = Object.assign(freshState(), older, newer);
+    out.gold = num(a.gold, b.gold);
+    out.hp = num(a.hp, b.hp);
+    out.updatedAt = num(a.updatedAt, b.updatedAt);
+
+    const sa = a.sql || {};
+    const sb = b.sql || {};
+    out.sql = Object.assign({}, older.sql, newer.sql, { rooms: mergeMap(sa.rooms, sb.rooms, mergeStage) });
+
+    out.sims = mergeMap(a.sims, b.sims, (x, y) => Object.assign({}, x, y, { levels: mergeMap(x.levels, y.levels, mergeStage) }));
+
+    const ta = a.theory || {};
+    const tb = b.theory || {};
+    out.theory = Object.assign({}, older.theory, newer.theory, {
+      cards: mergeMap(ta.cards, tb.cards, (x, y) => ({ known: !!(x.known || y.known), box: num(x.box, y.box), wrongs: num(x.wrongs, y.wrongs) })),
+      topics: mergeMap(ta.topics, tb.topics, (x, y) => ({ cleared: !!(x.cleared || y.cleared) })),
+      bestStreak: num(ta.bestStreak, tb.bestStreak),
+    });
+
+    const ra = a.rewards || {};
+    const rb = b.rewards || {};
+    if (ra.videos || rb.videos) {
+      out.rewards = {
+        videos: mergeMap(ra.videos, rb.videos, (x, y) => Object.assign({}, x, { plays: num(x.plays, y.plays) }, (x.fav || y.fav) ? { fav: true } : {})),
+        order: Array.from(new Set((ra.order || []).concat(rb.order || []))),
+        sources: Object.assign({}, rb.sources, ra.sources),
+      };
+    }
+
+    const ja = a.jobs || {};
+    const jb = b.jobs || {};
+    if (ja.counts || jb.counts) {
+      const byName = (list) => { const seen = new Set(); return list.filter((c) => { const k = String(c.name).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }); };
+      const logs = (ja.log || []).concat(jb.log || []);
+      out.jobs = Object.assign({}, older.jobs, newer.jobs, {
+        counts: mergeMap(ja.counts, jb.counts, num),
+        log: logs.filter((e, i) => logs.findIndex((x) => x.at === e.at && x.task === e.task) === i).sort((x, y) => y.at - x.at).slice(0, 100),
+        channels: byName((ja.channels || []).concat(jb.channels || [])),
+        companies: byName((ja.companies || []).concat(jb.companies || [])),
+        status: Object.assign({}, (older.jobs || {}).status, (newer.jobs || {}).status),
+        days: mergeMap(ja.days, jb.days, (x, y) => ({ all: num(x.all, y.all), main: num(x.main, y.main) })),
+        bonus: Object.assign({}, ja.bonus, jb.bonus),
+      });
+    }
+
+    const da = a.daily;
+    const db = b.daily;
+    if (da && db && da.date === db.date) {
+      const score = (d) => (d.claimed ? 1e6 : 0) + (d.tasks || []).reduce((sum, t) => sum + (t.done ? t.done.length : 0) + (t.n || 0), 0);
+      out.daily = Object.assign({}, score(da) >= score(db) ? da : db, { greeted: !!(da.greeted || db.greeted), streak: num(da.streak, db.streak) });
+    } else if (da || db) {
+      out.daily = !da ? db : !db ? da : da.date > db.date ? da : db;
+    }
+    return out;
+  }
+  Core.mergeStates = mergeStates;
 
   // Регистрация создаёт пользователя Auth по никнейму (без почты и подтверждений), вход — по никнейму и паролю.
   Core.login = async function login(name, password, create) {
@@ -216,7 +301,7 @@
       await pushCloud();
     } else {
       const r = adopt(row.state);
-      how = r === 'pulled' ? 'Прогресс загружен из облака.' : 'Прогресс из этого браузера сохранён в облаке.';
+      how = r === 'pulled' ? 'Прогресс загружен из облака.' : r === 'merged' ? 'Прогресс из этого браузера объединён с облаком.' : 'Прогресс из этого браузера сохранён в облаке.';
       writeLocal();
       if (r === 'pulled') setSync('saved');
     }
@@ -580,5 +665,8 @@
     if (Core.account) setSync('pending');
     const signedIn = await restoreSession(); // уже заходил: входим сами по сохранённой сессии
     if (!signedIn && !Core.account && !Core.guest && $('auth-gate').hidden) showGate(Core.lastName ? 'login' : 'register');
+    // наставник здоровается, только когда ясно, кто играет (после входа или выбора игры без аккаунта)
+    Core.ready = true;
+    if (window.Teacher) window.Teacher.greetIfNeeded();
   };
 })();

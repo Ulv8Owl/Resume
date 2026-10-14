@@ -1,1 +1,195 @@
-/* Стили режима «Нагрузка · JMeter». Общие стили — в academy.css. */
+/* Стили режима «Нагрузка · JMeter». Общие стили — в academy.css. Окно JMeter светлое, как Swing-интерфейс оригинала. */
+.jm { --jm-bg: #ececec; --jm-line: #b8b8b8; --jm-text: #1f1f1f; --jm-mute: #6b6b6b; --jm-sel: #2f65ca; --jm-ok: #218a3a; --jm-ko: #c62828;
+  display: grid; gap: 0; font: 12.5px/1.4 var(--font-body); color: var(--jm-text); color-scheme: light; min-width: 0; }
+.jm *, .jm *::before, .jm *::after { box-sizing: border-box; }
+.jm button { font: inherit; cursor: pointer; color: inherit; }
+.jm button:disabled { cursor: default; opacity: 0.45; }
+.jm code { font: 12px var(--font-mono); background: #e2e2e2; color: #1f1f1f; padding: 0 3px; border-radius: 3px; }
+.jm input[type="text"], .jm select, .jm textarea { font: 12px var(--font-mono); color: var(--jm-text); background: #fff; border: 1px solid #a9a9a9; border-radius: 2px; padding: 3px 5px; min-width: 0; }
+.jm input[type="text"]:focus, .jm select:focus, .jm textarea:focus { outline: 2px solid #8fb3f0; outline-offset: -1px; }
+.jm input:disabled, .jm select:disabled { background: #e6e6e6; color: #888; }
+.jm textarea { width: 100%; resize: vertical; }
+.jm [hidden] { display: none !important; }
+
+/* вкладки приложения: JMeter / Терминал / отчёт / стенд */
+.jm-apptabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 0 6px; }
+.jm-apptabs button { background: var(--slab); color: var(--dust); border: 1px solid var(--seam); border-radius: var(--radius); padding: 5px 12px; font-size: var(--step--1); }
+.jm-apptabs button.on { color: var(--torch); border-color: var(--torch); }
+
+/* окно JMeter */
+.jm-gui { position: relative; background: var(--jm-bg); border: 1px solid #9a9a9a; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; min-height: 620px; }
+.jm-titlebar { background: linear-gradient(#e9e9e9, #d4d4d4); border-bottom: 1px solid #b0b0b0; padding: 4px 10px; font-size: 12px; color: #333; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jm-menubar { display: flex; flex-wrap: wrap; background: #f4f4f4; border-bottom: 1px solid #cfcfcf; padding: 0 4px; }
+.jm-menubar button { background: none; border: 0; padding: 3px 9px; border-radius: 2px; }
+.jm-menubar button:hover { background: var(--jm-sel); color: #fff; }
+.jm-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 4px 6px; background: linear-gradient(#f6f6f6, #e3e3e3); border-bottom: 1px solid #c2c2c2; }
+.jm-toolbar > button { display: inline-flex; align-items: center; gap: 3px; background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 2px 6px; line-height: 1.3; }
+.jm-toolbar > button span { font-size: 11px; }
+.jm-toolbar > button:hover { background: #fff; border-color: #bcbcbc; }
+.jm-toolbar .jm-go { color: #1c7c2e; }
+.jm-toolbar .jm-stop { color: #b42318; }
+.jm-sep { width: 1px; height: 20px; background: #c4c4c4; margin: 0 3px; }
+.jm-status { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font: 12px var(--font-mono); }
+.jm-clock { padding: 1px 6px; background: #fff; border: 1px solid #c4c4c4; border-radius: 2px; }
+.jm-warn { background: none; border: 1px solid transparent; border-radius: 3px; padding: 1px 5px; color: #777; }
+.jm-warn.has { color: #b26a00; font-weight: 600; }
+.jm-act { display: inline-flex; align-items: center; gap: 5px; }
+.jm-act i { width: 12px; height: 12px; border-radius: 2px; background: #9e9e9e; display: inline-block; }
+.jm-act i.on { background: #2fbf4a; box-shadow: 0 0 4px #2fbf4a; }
+
+.jm-main { display: grid; grid-template-columns: minmax(170px, 250px) minmax(0, 1fr); flex: 1; min-height: 0; }
+.jm-tree { background: #fff; border-right: 1px solid #c2c2c2; padding: 4px 0; overflow: auto; max-height: 720px; outline: none; }
+.jm-node { display: flex; align-items: center; gap: 5px; width: 100%; text-align: left; background: none; border: 0; padding: 2px 8px 2px calc(6px + var(--d) * 16px); white-space: nowrap; font-size: 12.5px; }
+.jm-node .ic { font-size: 12px; width: 16px; text-align: center; flex: none; }
+.jm-node .nm { overflow: hidden; text-overflow: ellipsis; }
+.jm-node:hover { background: #e8eefb; }
+.jm-node.sel { background: var(--jm-sel); color: #fff; }
+.jm-node.off { color: #9a9a9a; }
+.jm-node.off .ic { filter: grayscale(1); opacity: 0.55; }
+.jm-node.sel.off { color: #d7e1f6; }
+
+.jm-panel { padding: 8px 12px 14px; overflow: auto; max-height: 720px; min-width: 0; display: grid; gap: 6px; align-content: start; }
+.jm-ptitle { margin: 0 0 2px; font: 600 15px var(--font-body); color: #222; }
+.jm-f { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 8px; align-items: center; min-width: 0; }
+.jm-f > span { color: #333; }
+.jm-f input, .jm-f select { width: 100%; max-width: 360px; }
+.jm-f.wide input { max-width: none; }
+.jm-c { display: inline-flex; align-items: center; gap: 5px; margin-right: 12px; cursor: pointer; }
+.jm-c input { margin: 0; }
+.jm-fs { border: 1px solid #bdbdbd; border-radius: 3px; padding: 6px 10px 8px; margin: 0; display: grid; gap: 6px; min-width: 0; }
+.jm-fs legend { padding: 0 4px; color: #3a3a3a; }
+.jm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.jm-row .jm-f { flex: 1 1 220px; }
+.jm-row .jm-f.wide { flex: 3 1 260px; }
+.jm-lbl { color: #333; }
+.jm-short { width: 80px; }
+.jm-mute { color: var(--jm-mute); }
+.jm-grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px 10px; }
+.jm-radios { display: flex; flex-wrap: wrap; gap: 4px 0; }
+.jm-disabled-note { margin: 0; padding: 4px 8px; background: #fff4d6; border: 1px solid #e3c771; border-radius: 3px; color: #6a5100; }
+.jm-btn { background: #fafafa; border: 1px solid #a9a9a9; border-radius: 3px; padding: 2px 12px; }
+.jm-btn:hover { background: #f0f0f0; }
+.jm-btn.primary { background: var(--jm-sel); border-color: #2654aa; color: #fff; }
+.jm-ptabs { display: flex; gap: 2px; border-bottom: 1px solid #bdbdbd; margin-top: 4px; }
+.jm-ptabs button { background: #dedede; border: 1px solid #bdbdbd; border-bottom: 0; border-radius: 3px 3px 0 0; padding: 2px 10px; }
+.jm-ptabs button.on { background: #fff; font-weight: 600; }
+.jm-ptab { min-width: 0; }
+
+/* таблицы параметров */
+.jm-tbl { min-width: 0; display: grid; gap: 4px; }
+.jm-tbl table { width: 100%; border-collapse: collapse; background: #fff; table-layout: fixed; }
+.jm-tbl th { background: #e4e4e4; border: 1px solid #c4c4c4; padding: 2px 4px; font-weight: 400; text-align: center; color: #333; }
+.jm-tbl th:last-child { width: 28px; }
+.jm-tbl td { border: 1px solid #d4d4d4; padding: 0; }
+.jm-tbl td input { width: 100%; border: 0; border-radius: 0; padding: 3px 5px; }
+.jm-tbl tr.empty td { height: 22px; }
+.jm-x { width: 100%; background: none; border: 0; color: #a33; padding: 2px 0; }
+.jm-tbl-btns { display: flex; justify-content: center; gap: 6px; }
+
+/* слушатели */
+.jm-res { min-width: 0; margin-top: 4px; }
+.jm-empty { padding: 10px; color: var(--jm-mute); }
+.jm-tablewrap { overflow-x: auto; max-width: 100%; border: 1px solid #c4c4c4; background: #fff; }
+.jm-table { border-collapse: collapse; width: 100%; font: 11.5px var(--font-mono); }
+.jm-table th { background: #e4e4e4; color: #222; font: 600 11px var(--font-body); padding: 3px 6px; border-right: 1px solid #ccc; border-bottom: 1px solid #bbb; text-align: left; white-space: nowrap; position: static; }
+.jm-table td { padding: 2px 6px; border-right: 1px solid #eee; border-bottom: 1px solid #eee; white-space: nowrap; color: #1f1f1f; background: none; }
+.jm-table tr.total td { font-weight: 700; background: #f3f3f3; }
+.jm-table.kv td:first-child { color: #555; }
+
+.jm-vrt { display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr); border: 1px solid #c4c4c4; background: #fff; min-height: 300px; }
+.jm-vleft { border-right: 1px solid #c4c4c4; display: flex; flex-direction: column; min-width: 0; }
+.jm-vhead { padding: 3px; border-bottom: 1px solid #ddd; background: #f2f2f2; }
+.jm-vlist { overflow: auto; max-height: 420px; flex: 1; }
+.jm-vrow { display: flex; gap: 5px; width: 100%; text-align: left; background: none; border: 0; padding: 1px 6px 1px calc(6px + var(--d) * 14px); white-space: nowrap; font-size: 12px; }
+.jm-vrow span { font-size: 11px; }
+.jm-vrow.ok span { color: var(--jm-ok); }
+.jm-vrow.ko { color: var(--jm-ko); }
+.jm-vrow:hover { background: #e8eefb; }
+.jm-vrow.sel { background: var(--jm-sel); color: #fff; }
+.jm-vrow.sel span { color: #fff; }
+.jm-vright { display: flex; flex-direction: column; min-width: 0; }
+.jm-vtabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 4px 0; background: #f2f2f2; border-bottom: 1px solid #c4c4c4; }
+.jm-vtabs button { background: #dedede; border: 1px solid #c4c4c4; border-bottom: 0; border-radius: 3px 3px 0 0; padding: 2px 10px; }
+.jm-vtabs button.on { background: #fff; font-weight: 600; }
+.jm-vbody { padding: 6px 8px; overflow: auto; max-height: 420px; }
+.jm-vbody pre, .jm-logview pre, .jm-preview { margin: 0; font: 11.5px/1.45 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; color: #1f1f1f; background: none; }
+.jm-sub { margin: 6px 0 2px; font-weight: 600; color: #444; }
+.jm-sub:first-child { margin-top: 0; }
+
+.jm-chart { margin: 0; background: #fff; border: 1px solid #c4c4c4; padding: 4px; }
+.jm-chart svg { width: 100%; height: auto; display: block; font: 10px var(--font-body); }
+.jm-chart svg text { fill: #444; }
+.jm-chart .jm-grid { stroke: #e5e5e5; }
+.jm-chart .jm-ax { stroke: #777; }
+.jm-chart .jm-axis { fill: #666; font-size: 10px; }
+.jm-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 2px 6px; font-size: 11px; }
+.jm-legend i { display: inline-block; width: 14px; height: 3px; margin-right: 4px; vertical-align: middle; }
+
+/* лог, меню, диалоги */
+.jm-logview { border-top: 1px solid #b0b0b0; background: #fff; max-height: 180px; display: flex; flex-direction: column; }
+.jm-loghead { display: flex; justify-content: space-between; align-items: center; padding: 2px 6px; background: #e8e8e8; border-bottom: 1px solid #ccc; }
+.jm-logview pre { padding: 4px 6px; overflow: auto; }
+.jm-menu { position: absolute; z-index: 20; display: flex; align-items: flex-start; max-width: calc(100% - 8px); }
+.jm-mcol { list-style: none; margin: 0 0 0 -1px; padding: 3px 0; background: #fbfbfb; border: 1px solid #9c9c9c; box-shadow: 2px 3px 8px rgba(0, 0, 0, 0.25); min-width: 170px; max-height: 420px; overflow: auto; }
+.jm-mcol li.sep { height: 1px; background: #d6d6d6; margin: 3px 0; }
+.jm-mcol button { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; padding: 3px 12px; text-align: left; white-space: nowrap; }
+.jm-mcol button span { flex: 1; }
+.jm-mcol button kbd { font: 11px var(--font-body); color: #777; }
+.jm-mcol button b { font-weight: 400; color: #555; }
+.jm-mcol button:hover:not(:disabled), .jm-mcol button.open { background: var(--jm-sel); color: #fff; }
+.jm-mcol button:hover kbd, .jm-mcol button.open b, .jm-mcol button:hover b { color: #fff; }
+.jm-dlg { position: absolute; inset: 0; z-index: 30; background: rgba(0, 0, 0, 0.18); display: grid; place-items: start center; padding: 60px 10px 10px; }
+.jm-dbox { width: min(420px, 100%); background: var(--jm-bg); border: 1px solid #888; border-radius: 4px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3); padding: 0 12px 12px; display: grid; gap: 8px; }
+.jm-dtitle { margin: 0 -12px; padding: 4px 10px; background: linear-gradient(#e9e9e9, #d4d4d4); border-bottom: 1px solid #b0b0b0; text-align: center; }
+.jm-dlook { margin: 0; }
+.jm-files { list-style: none; margin: 0; padding: 4px; background: #fff; border: 1px solid #b5b5b5; max-height: 150px; overflow: auto; font: 12px var(--font-mono); }
+.jm-files.pick li button { width: 100%; text-align: left; background: none; border: 0; padding: 1px 4px; }
+.jm-files.pick li button.on { background: var(--jm-sel); color: #fff; }
+.jm-preview { background: #fff; border: 1px solid #ddd; padding: 4px 6px; max-height: 90px; overflow: auto; }
+.jm-dbtns { display: flex; justify-content: flex-end; gap: 6px; }
+
+/* терминал */
+.jm-termpane { min-width: 0; }
+.jm-term { background: #101317; color: #d7dde4; border-radius: 6px; border: 1px solid #2a2f36; padding: 10px; display: grid; gap: 4px; min-height: 420px; grid-template-rows: 1fr auto; }
+.jm-tout { margin: 0; font: 12px/1.45 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; max-height: 560px; color: #d7dde4; background: none; }
+.jm-tin { display: flex; gap: 6px; align-items: center; font: 12px var(--font-mono); color: #7ee787; }
+.jm-tin input[type="text"] { flex: 1; background: transparent; border: 0; color: #e8eef4; font: 12px var(--font-mono); padding: 2px 0; outline: none; min-width: 0; }
+.jm-tin input:disabled { background: transparent; }
+
+/* HTML-отчёт */
+.jm-reportpane, .jm-apipane { min-width: 0; background: #fff; border: 1px solid #c4c4c4; border-radius: 6px; padding: 10px; display: grid; gap: 10px; }
+.jm-dash { display: grid; gap: 12px; min-width: 0; }
+.jm-dash-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding: 8px 10px; background: #3b4a5a; color: #fff; border-radius: 4px; }
+.jm-dash-top span { font: 11px var(--font-mono); opacity: 0.85; overflow-wrap: anywhere; }
+.jm-dash section { display: grid; gap: 6px; min-width: 0; align-content: start; }
+.jm-dash-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.jm-dash h4, .jm-api h4 { margin: 0; font: 600 13px var(--font-body); color: #2a3a4a; border-bottom: 1px solid #dde3ea; padding-bottom: 3px; }
+.jm-dash-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; }
+.jm-dash-pie { justify-items: center; }
+.jm-donut { width: 130px; height: 130px; }
+.jm-dash-pie p { margin: 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.jm-dash-pie i { width: 10px; height: 10px; display: inline-block; }
+.jm-dash-pie i.ok { background: #4caf50; } .jm-dash-pie i.ko { background: #d62728; }
+.jm-api { display: grid; gap: 8px; color: #1f1f1f; }
+.jm-api p { margin: 0; }
+.jm-m { font: 700 10px var(--font-mono); padding: 1px 5px; border-radius: 3px; color: #fff; }
+.jm-m.get { background: #4a90e2; } .jm-m.post { background: #3aa66b; }
+.jm-api .jm-table td { white-space: normal; }
+
+@media (max-width: 720px) {
+  .jm-gui { min-height: 0; }
+  .jm-main { grid-template-columns: minmax(0, 1fr); }
+  .jm-tree { max-height: 230px; border-right: 0; border-bottom: 1px solid #c2c2c2; }
+  .jm-panel { max-height: none; padding: 8px; }
+  .jm-toolbar > button span { display: none; }
+  .jm-status { margin-left: 0; width: 100%; justify-content: flex-end; }
+  .jm-f { grid-template-columns: minmax(0, 1fr); }
+  .jm-f input, .jm-f select { max-width: none; }
+  .jm-vrt { grid-template-columns: minmax(0, 1fr); }
+  .jm-vleft { border-right: 0; border-bottom: 1px solid #c4c4c4; }
+  .jm-vlist { max-height: 200px; }
+  .jm-menu { flex-direction: column; left: 4px !important; right: 4px; }
+  .jm-mcol { margin: -1px 0 0; width: 100%; max-height: 260px; }
+  .jm-dash-row, .jm-dash-charts { grid-template-columns: minmax(0, 1fr); }
+  .jm-titlebar { text-align: left; }
+}

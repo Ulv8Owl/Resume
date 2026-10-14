@@ -361,6 +361,7 @@
 
     if (st.cleared) {
       log('info', ev.exact ? 'Тренировочный удар точен.' : 'Тренировочный удар мимо.');
+      if (ev.exact) Core.track('sql-room', { id: r.id, replay: true });
       return finishTurn();
     }
 
@@ -406,6 +407,7 @@
 
     st.cleared = true;
     st.best = 1;
+    Core.track('sql-room', { id: r.id });
     st.stars = rw.stars;
     p.gold += rw.gold + bonus;
     // опыт не копится в переменной: он считается из пройденного, поэтому зал уже учтён

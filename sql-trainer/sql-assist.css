@@ -1,0 +1,17 @@
+/* Подсказки SQL и строка быстрых символов. Токены цвета — из styles.css. */
+.desk-book { position: relative; }
+.sqla { display: grid; gap: 2px; margin-top: 4px; padding: 4px; max-height: 260px; overflow-y: auto; background: var(--slab-2);
+  border: 1px solid var(--torch); border-radius: var(--radius); box-shadow: 0 12px 30px color-mix(in srgb, #000 50%, transparent); }
+.sqla[hidden] { display: none; }
+.sqla-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 10px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--parchment); font: 500 0.92rem/1.2 "JetBrains Mono", ui-monospace, monospace; text-align: left; cursor: pointer; }
+.sqla-item small { font-family: var(--font-body); font-weight: 400; font-size: 0.7rem; color: var(--dust); }
+.sqla-item.on, .sqla-item:hover { background: color-mix(in srgb, var(--torch) 22%, transparent); }
+.sqla-keys { display: none; gap: 4px; margin-top: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.sqla-keys button { flex: 0 0 auto; min-width: 38px; height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--seam);
+  background: var(--slab-2); color: var(--parchment); font: 600 1rem "JetBrains Mono", ui-monospace, monospace; touch-action: manipulation; }
+.sqla-keys button:active { background: color-mix(in srgb, var(--torch) 25%, var(--slab-2)); }
+@media (pointer: coarse), (max-width: 720px) {
+  .sqla-keys { display: flex; }
+  .sqla-item { padding: 10px 12px; font-size: 1rem; }
+}

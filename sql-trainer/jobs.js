@@ -151,6 +151,7 @@
     undo = { key, gold, xp: t.xp, day: d, small: !!t.small, bonus, entry };
     toast = `${t.icon} ${t.name}: +${t.gold} 🪙 · +${t.xp} XP${bonus ? ` · цель дня выполнена: +${bonus} 🪙` : ''}`;
     const up = Core.rankUp(before);
+    Core.track('jobs-action', { cat: catId, task: taskId });
     const video = Rewards.drop('jobs');
     undo.video = video;
     if (video) toast += ' · 🎬 выпало видео!';

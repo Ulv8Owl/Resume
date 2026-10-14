@@ -236,8 +236,9 @@ td.null { color: var(--dust); font-style: italic; }
 .verdict ul { margin: 2px 0 0; padding-left: 18px; color: var(--parchment); }
 
 /* overlay */
-.overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--ink) 78%, transparent); display: grid; place-items: center; padding: 16px; z-index: 10; }
-.modal { width: min(440px, 100%); background: var(--slab); border: 1px solid var(--torch); border-radius: 10px; padding: 22px; text-align: center; display: grid; gap: 12px; box-shadow: 0 20px 60px var(--ink); }
+/* высокое окно прокручивается внутри затемнения, а не уходит за край экрана */
+.overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--ink) 78%, transparent); display: grid; justify-items: center; padding: 16px; z-index: 10; overflow-y: auto; overscroll-behavior: contain; }
+.modal { margin: auto 0; width: min(440px, 100%); background: var(--slab); border: 1px solid var(--torch); border-radius: 10px; padding: 22px; text-align: center; display: grid; gap: 12px; box-shadow: 0 20px 60px var(--ink); }
 .modal.defeat { border-color: var(--blood); }
 .modal h3 { margin: 0; font-family: var(--font-display); font-size: 1.8rem; font-weight: 500; color: var(--torch); }
 .modal.defeat h3 { color: var(--blood); }

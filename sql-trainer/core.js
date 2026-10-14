@@ -249,6 +249,11 @@
 
   Core.registerMode = function registerMode(id, api) { Core.modes[id] = api; };
 
+  // События прогресса: режимы сообщают о сделанном (решён зал, засчитана карточка…), ежедневное задание их считает.
+  const listeners = [];
+  Core.on = (fn) => listeners.push(fn);
+  Core.track = function track(type, data) { listeners.forEach((fn) => { try { fn(type, data || {}); } catch (e) { console.error(e); } }); };
+
   Core.xpBy = function xpBy(id) {
     const m = Core.modes[id];
     return m && m.xpOf ? m.xpOf(Core.state) : 0;
@@ -381,6 +386,11 @@
       </button>`;
     }).join('');
     document.querySelectorAll('.mode-card').forEach((b) => b.addEventListener('click', () => Core.go(b.dataset.mode)));
+    // на широком экране список режимов раскрыт рядом с башней, на телефоне свёрнут под ней
+    const list = $('home-list');
+    if (list && !list.dataset.init) { list.dataset.init = '1'; list.open = window.innerWidth > 1100; }
+    if (window.Town) window.Town.render();
+    if (window.Teacher) setTimeout(() => window.Teacher.greetIfNeeded(), 0);
   }
 
   // ---------- настройки: аккаунт и сброс прогресса ----------
@@ -533,6 +543,7 @@
   Core.start = async function start() {
     document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => Core.go(b.dataset.go)));
     $('settings-btn').addEventListener('click', openSettings);
+    $('hud-teacher').addEventListener('click', () => window.Teacher && window.Teacher.open());
     Core.go('home');
     if (Core.account) setSync('pending');
     const signedIn = await restoreSession(); // уже заходил: входим сами по сохранённой сессии

@@ -86,7 +86,7 @@
       if (progressed) {
         Core.save();
         render();
-        if (currentIndex() < 0 && !st.cleared) victory();
+        if (currentIndex() < 0) finished();
       }
     }
 
@@ -183,7 +183,7 @@
             complete(step);
             Core.save();
             render();
-            if (currentIndex() < 0 && !store().cleared) victory();
+            if (currentIndex() < 0) finished();
           } else {
             note.hidden = false;
             note.textContent = step.answer.wrong || 'Не то. Посмотри в симуляторе ещё раз.';
@@ -193,6 +193,12 @@
         const inp = questEl.querySelector('.answer-input');
         if (inp) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
       }
+    }
+
+    // Все шаги выполнены: первый раз — победа с наградой, повторно — только отметка для ежедневного задания.
+    function finished() {
+      Core.track('sim-level', { mode: opts.mode, id: level.id });
+      if (!store().cleared) victory();
     }
 
     function victory() {

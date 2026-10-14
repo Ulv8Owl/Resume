@@ -317,7 +317,14 @@
 .card-label { margin: 0; font-size: var(--step--1); color: var(--dust); text-transform: uppercase; letter-spacing: 0.08em; }
 .card-q { margin: 0; font-family: var(--font-display); font-size: 1.5rem; line-height: 1.3; text-wrap: balance; }
 .card-reward { margin: auto 0 0; font-size: var(--step--1); color: var(--torch); }
-.card-answer { margin: 0; line-height: 1.6; max-width: 70ch; }
+.card-answer { margin: 0; line-height: 1.6; max-width: 72ch; display: grid; gap: 8px; }
+.card-answer p { margin: 0; }
+.card-answer ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.card-example { padding: 10px 12px; border-left: 3px solid var(--rune); background: color-mix(in srgb, var(--rune) 7%, var(--slab)); border-radius: 0 var(--radius) var(--radius) 0; }
+.card-terms { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; font-size: var(--step--1); }
+.card-terms dt { font-weight: 500; color: var(--torch); }
+.card-terms dd { margin: 0; color: var(--parchment); }
+@media (max-width: 720px) { .card-terms { grid-template-columns: minmax(0, 1fr); } .card-terms dd { margin-bottom: 6px; } }
 .pts { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 div.pts { padding: 0; }
 .pt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; padding: 6px 8px; border: 1px solid var(--seam); border-radius: var(--radius); cursor: pointer; }

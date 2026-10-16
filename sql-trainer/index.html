@@ -43,6 +43,7 @@
       <span class="chip gold" title="Золото">🪙 <b id="gold-text">0</b></span>
       <span class="chip sync guest" id="sync-chip">Гость</span>
       <button class="gear hud-teacher" type="button" data-teacher id="hud-teacher" title="Наставник: ежедневное задание" aria-label="Наставник: ежедневное задание"><img src="Avatars/Teacher.jpeg" alt=""><span class="teacher-count"></span></button>
+      <button class="gear" type="button" id="trophies-btn" title="Трофеи: портреты побеждённых монстров" aria-label="Трофеи">🏆</button>
       <button class="gear" type="button" data-go="shop" title="Лавка: зелья и свитки" aria-label="Лавка">🧪</button>
       <button class="gear" id="settings-btn" type="button" title="Настройки" aria-label="Настройки">⚙</button>
     </div>
@@ -63,14 +64,12 @@
   </section>
 
   <section class="screen" data-screen="sql" hidden>
-    <div class="sim-head">
-      <button class="ghost-btn" type="button" data-go="home">← К выбору режима</button>
-      <h2 class="sim-title"><span aria-hidden="true">🐉</span> SQL · Подземелье запросов</h2>
-      <span class="chip" title="Пройдено залов">🚪 <b id="cleared-text">0 / 90</b></span>
-      <button class="ghost-btn" id="trophies-btn" type="button">🏆 Трофеи</button>
-    </div>
   <nav class="map" aria-label="Карта подземелья">
-      <div class="acts" id="acts"></div>
+      <div class="map-top">
+        <div class="acts" id="acts"></div>
+        <span class="chip" title="Пройдено залов">🚪 <b id="cleared-text">0 / 90</b></span>
+        <button class="ghost-btn map-home" type="button" data-go="home">← К выбору режима</button>
+      </div>
       <p class="act-topic" id="act-topic"></p>
       <div class="tiles" id="tiles"></div>
     </nav>

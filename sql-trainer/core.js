@@ -450,6 +450,7 @@
 
   Core.go = function go(screen) {
     Core.screen = screen;
+    document.body.classList.toggle('in-sql', screen === 'sql'); // в бою шапка прячется — больше места для боя
     document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.dataset.screen !== screen; });
     const m = Core.modes[screen];
     if (m && m.open) m.open();
@@ -677,6 +678,7 @@
   Core.start = async function start() {
     document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => Core.go(b.dataset.go)));
     $('settings-btn').addEventListener('click', openSettings);
+    $('trophies-btn').addEventListener('click', () => Core.openTrophies && Core.openTrophies());
     $('hud-teacher').addEventListener('click', () => window.Teacher && window.Teacher.open());
     Core.go('home');
     if (Core.account) setSync('pending');

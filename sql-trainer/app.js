@@ -12,9 +12,10 @@
     r.taunts = base.taunts;
   });
   // Портрет монстра — клетка спрайтшита images/<1-10|11-20|21-30>/<акт>.jpeg: 5 по горизонтали, 2 по вертикали.
-  function portrait(r) {
+  // В бою и на карте — портреты I акта для всех актов; портреты II и III актов — только в трофеях.
+  function portrait(r, trophy) {
     const k = r.index % 30;
-    const act = Math.floor(r.index / 30);
+    const act = trophy ? Math.floor(r.index / 30) : 0;
     const group = ['1-10', '11-20', '21-30'][Math.floor(k / 10)];
     const cell = k % 10;
     return `background-image:url('images/${group}/${act}.jpeg');background-position:${(cell % 5) * 25}% ${Math.floor(cell / 5) * 100}%`;
@@ -72,13 +73,13 @@
     const close = Core.modal(`<div class="trophies">
       <h3>Трофеи · ${D.rooms.filter((r) => rooms[r.id].cleared).length} / ${D.rooms.length}</h3>
       ${D.acts.map((a) => `<p class="eyebrow">${esc(a.name)}</p><div class="trophy-grid">${D.rooms.slice(a.from, a.to).map((r) => rooms[r.id].cleared
-        ? `<button type="button" class="trophy" data-room="${r.index}" title="${esc(r.monster)}" style="${portrait(r)}"></button>`
+        ? `<button type="button" class="trophy" data-room="${r.index}" title="${esc(r.monster)}" style="${portrait(r, true)}"></button>`
         : `<span class="trophy locked" title="Ещё не побеждён">${r.index + 1}</span>`).join('')}</div>`).join('')}
       <button class="btn" id="modal-close" type="button">Закрыть</button></div>`);
     document.querySelectorAll('.trophy[data-room]').forEach((b) => b.addEventListener('click', () => {
       const r = D.rooms[+b.dataset.room];
       close();
-      Core.modal(`<div class="trophy-big wide" style="${portrait(r)}"></div><h3>${esc(r.monster)}</h3><p class="modal-tip">${esc(r.floor)} · ${esc(D.acts[actOf(r)].name)}</p>
+      Core.modal(`<div class="trophy-big wide" style="${portrait(r, true)}"></div><h3>${esc(r.monster)}</h3><p class="modal-tip">${esc(r.floor)} · ${esc(D.acts[actOf(r)].name)}</p>
         <button class="btn" id="modal-close" type="button">Закрыть</button>`, { onClose: openTrophies });
     }));
   }
@@ -162,7 +163,7 @@
     const box = $('hints');
     const read = F().scrolls.slice().sort();
     box.innerHTML = read.map((t) => `<div class="hint open"><span class="lvl">${'I'.repeat(t)}</span><span class="body">${r.hints[t - 1]}</span></div>`).join('') +
-      (read.length ? '' : '<p class="muted belt-empty">Свитки заклинаний подсказывают решение: малый — направление, обычный — подробнее, великий — почти готовое заклинание.</p>');
+      '';
     const items = window.Shop.ITEMS;
     box.insertAdjacentHTML('beforeend', `<div class="belt" aria-label="Пояс с расходниками">${items.map((it, i) => {
       const tier = it.id.startsWith('scroll') ? +it.id.slice(-1) : 0;
@@ -504,7 +505,7 @@
       : '';
     const nextAct = next && actOf(next) !== actOf(r) ? `<p class="act-open">Открыт ${esc(D.acts[actOf(next)].name)}</p>` : '';
     Core.modal(`
-      <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : `<div class="trophy-big" style="${portrait(r)}"></div>`}</div>
+      <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : `<div class="trophy-big" style="${portrait(r, true)}"></div>`}</div>
       ${firstWin ? '<p class="act-open">🏆 Новый трофей: портрет монстра в коллекции</p>' : ''}
       <h3>Победа!</h3>
       <p class="modal-tip">${esc(r.monster)} повержен. Он вернётся, если захочешь сразиться снова — за ту же добычу.</p>
@@ -559,9 +560,9 @@
 
   function bind() {
     $('run-btn').addEventListener('click', scout);
-    $('trophies-btn').addEventListener('click', openTrophies);
+    Core.openTrophies = openTrophies;
     // высота шапки — чтобы экран боя ровно занял окно без прокрутки
-    const hudH = () => document.documentElement.style.setProperty('--hud-h', document.querySelector('.hud').getBoundingClientRect().bottom + 'px');
+    const hudH = () => document.documentElement.style.setProperty('--hud-h', Math.max(0, document.querySelector('.hud').getBoundingClientRect().bottom) + 'px');
     window.addEventListener('resize', hudH);
     hudH();
     $('attack-btn').addEventListener('click', attack);
@@ -593,6 +594,7 @@
 
   let opened = false;
   function open() {
+    window.dispatchEvent(new Event('resize')); // шапка в бою спрятана — пересчитать высоту экрана
     if (!opened) {
       opened = true;
       $('sql').value = '';

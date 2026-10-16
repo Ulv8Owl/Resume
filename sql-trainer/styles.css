@@ -283,3 +283,44 @@ td.null { color: var(--dust); font-style: italic; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 .bar.mana > i { background: #4f8cff; }
+
+/* ---------- портреты монстров и трофеи ---------- */
+.monster.portrait { width: 132px; aspect-ratio: 1; font-size: 0; border-radius: 12px; border: 2px solid var(--seam);
+  background-size: 500% 200%; background-repeat: no-repeat; background-color: var(--ink); }
+.arena.boss .monster.portrait { width: 150px; border-color: var(--blood); }
+.tile-img { display: block; width: 100%; max-width: 46px; aspect-ratio: 1; border-radius: 6px; background-size: 500% 200%; background-repeat: no-repeat; }
+.trophy-big { width: 220px; aspect-ratio: 1; margin: 0 auto; border-radius: 12px; border: 2px solid var(--torch); background-size: 500% 200%; background-repeat: no-repeat; }
+.trophy-big.wide { width: min(380px, 100%); }
+.modal:has(.trophies) { width: min(900px, 100%); }
+.trophies { display: grid; gap: 10px; text-align: left; }
+.trophy-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; }
+.trophy { aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--seam); background-size: 500% 200%; background-repeat: no-repeat; cursor: zoom-in; padding: 0; }
+.trophy:hover { border-color: var(--torch); }
+.trophy.locked { display: grid; place-items: center; background: var(--slab-2); color: var(--dust); font-size: 0.75rem; cursor: default; }
+@media (max-width: 720px) { .trophy-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } .monster.portrait { width: 96px; } }
+
+/* ---------- полоски игрока прямо в бою ---------- */
+.player-bars { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 4px; font-size: var(--step--1); color: var(--dust); }
+.player-bars b { color: var(--parchment); font-variant-numeric: tabular-nums; }
+.player-bars .bar { height: 10px; margin-top: 3px; }
+
+/* ---------- статичный экран боя на широком экране: всё видно без прокрутки страницы ---------- */
+@media (min-width: 1100px) and (min-height: 700px) {
+  body:has(.screen[data-screen="sql"]:not([hidden])) { overflow: hidden; }
+  .screen[data-screen="sql"]:not([hidden]) { height: calc(100dvh - var(--hud-h, 96px) - 32px); display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; }
+  .screen[data-screen="sql"] .map { gap: 6px; }
+  .screen[data-screen="sql"] .act-topic { display: none; }
+  .screen[data-screen="sql"] .tiles { grid-template-columns: repeat(30, minmax(0, 1fr)); gap: 3px; }
+  .screen[data-screen="sql"] .tile { padding: 3px 1px 2px; }
+  .screen[data-screen="sql"] .tile-stars, .screen[data-screen="sql"] .tile-num { font-size: 0.55rem; }
+  .screen[data-screen="sql"] .board { height: 100%; min-height: 0; align-items: stretch; }
+  .screen[data-screen="sql"] .col { min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; }
+  .screen[data-screen="sql"] .col:last-child { grid-template-rows: minmax(0, 1fr) auto; }
+  .screen[data-screen="sql"] .panel { padding: 10px 14px; }
+  .screen[data-screen="sql"] .m5, .screen[data-screen="sql"] .m3 { min-height: 0; overflow: auto; }
+  .screen[data-screen="sql"] .monster.portrait { width: 96px; }
+  .screen[data-screen="sql"] .arena.boss .monster.portrait { width: 108px; }
+  .screen[data-screen="sql"] .desk { grid-template-columns: minmax(0, 1fr) 220px; }
+  .screen[data-screen="sql"] .desk-book textarea { min-height: 120px; }
+  .screen[data-screen="sql"] .pentagram-svg { max-width: 200px; }
+}

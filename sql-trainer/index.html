@@ -32,11 +32,11 @@
         <div class="bar xp"><i id="xp-bar"></i></div>
         <div class="stat-sub" id="xp-text"></div>
       </div>
-      <div class="stat" id="hud-hp" hidden>
+      <div class="stat" id="hud-hp">
         <div class="stat-label">Здоровье <b id="hp-text">100 / 100</b></div>
         <div class="bar hp"><i id="hp-bar"></i></div>
       </div>
-      <div class="stat" id="hud-mana" hidden>
+      <div class="stat" id="hud-mana">
         <div class="stat-label">Мана <b id="mana-text">100 / 100</b></div>
         <div class="bar mana"><i id="mana-bar"></i></div>
       </div>
@@ -67,6 +67,7 @@
       <button class="ghost-btn" type="button" data-go="home">← К выбору режима</button>
       <h2 class="sim-title"><span aria-hidden="true">🐉</span> SQL · Подземелье запросов</h2>
       <span class="chip" title="Пройдено залов">🚪 <b id="cleared-text">0 / 90</b></span>
+      <button class="ghost-btn" id="trophies-btn" type="button">🏆 Трофеи</button>
     </div>
   <nav class="map" aria-label="Карта подземелья">
       <div class="acts" id="acts"></div>
@@ -84,7 +85,11 @@
             <div class="bar hp"><i id="monster-bar"></i></div>
             <div class="monster-meta" id="monster-meta"></div>
           </div>
-          <p class="intro" id="monster-intro"></p>
+          <p class="intro" id="monster-intro" hidden></p>
+          <div class="player-bars" aria-label="Твои здоровье и мана">
+            <div><span>❤ Ты <b id="p-hp-text"></b></span><div class="bar hp"><i id="p-hp-bar"></i></div></div>
+            <div><span>💧 Мана <b id="p-mana-text"></b></span><div class="bar mana"><i id="p-mana-bar"></i></div></div>
+          </div>
           <p class="arena-line" id="arena-line"></p>
         </section>
   

@@ -197,6 +197,19 @@
 
   function isEmpty(st) { return !st || !st.updatedAt; }
 
+  // Вне Подземелья (в башне и других режимах) здоровье и мана восстанавливаются: +15 каждые 5 секунд.
+  setInterval(() => {
+    if (Core.screen === 'sql' || document.hidden) return;
+    const st = Core.state;
+    const hp = Math.min(Core.maxHp(), (st.hp || 0) + 15);
+    const mana = Math.min(Core.maxMana(), (st.mana || 0) + 15);
+    if (hp === st.hp && mana === st.mana) return;
+    st.hp = hp;
+    st.mana = mana;
+    writeLocal(); // в облако уйдёт с ближайшим сохранением, не каждые 5 секунд
+    Core.renderHud();
+  }, 5000);
+
   // Вернулся на вкладку — подтягиваем прогресс из облака: вдруг играл на другом устройстве.
   async function pullCloud() {
     if (!Core.account || Core.sync === 'saving' || Core.sync === 'pending') return;
@@ -406,13 +419,13 @@
     Core.state.hp = hp;
     $('hp-text').textContent = `${hp} / ${rk.maxHp}`;
     setBar($('hp-bar'), hp / rk.maxHp);
-    $('hud-hp').hidden = Core.screen !== 'sql';
+    if ($('p-hp-text')) { $('p-hp-text').textContent = `${hp} / ${rk.maxHp}`; setBar($('p-hp-bar'), hp / rk.maxHp); }
     if (Core.state.mana == null) Core.state.mana = rk.maxMana;
     const mana = Math.min(Core.state.mana, rk.maxMana);
     Core.state.mana = mana;
     $('mana-text').textContent = `${Math.floor(mana)} / ${rk.maxMana}`;
     setBar($('mana-bar'), mana / rk.maxMana);
-    $('hud-mana').hidden = Core.screen !== 'sql';
+    if ($('p-mana-text')) { $('p-mana-text').textContent = `${Math.floor(mana)} / ${rk.maxMana}`; setBar($('p-mana-bar'), mana / rk.maxMana); }
     renderSync();
   };
 

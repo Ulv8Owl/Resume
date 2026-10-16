@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+Runic&family=Pixelify+Sans:wght@400;500&family=Rubik:ital,wght@0,400;0,500;1,400&display=swap">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="academy.css">
-<link rel="stylesheet" href="rewards.css">
+<link rel="stylesheet" href="shop.css">
 <link rel="stylesheet" href="sims/design.css">
 <link rel="stylesheet" href="sims/jmeter.css">
 <link rel="stylesheet" href="jobs.css">
@@ -36,10 +36,14 @@
         <div class="stat-label">Здоровье <b id="hp-text">100 / 100</b></div>
         <div class="bar hp"><i id="hp-bar"></i></div>
       </div>
+      <div class="stat" id="hud-mana" hidden>
+        <div class="stat-label">Мана <b id="mana-text">100 / 100</b></div>
+        <div class="bar mana"><i id="mana-bar"></i></div>
+      </div>
       <span class="chip gold" title="Золото">🪙 <b id="gold-text">0</b></span>
       <span class="chip sync guest" id="sync-chip">Гость</span>
       <button class="gear hud-teacher" type="button" data-teacher id="hud-teacher" title="Наставник: ежедневное задание" aria-label="Наставник: ежедневное задание"><img src="Avatars/Teacher.jpeg" alt=""><span class="teacher-count"></span></button>
-      <button class="gear" type="button" data-go="inventory" title="Инвентарь" aria-label="Инвентарь">🎒</button>
+      <button class="gear" type="button" data-go="shop" title="Лавка: зелья и свитки" aria-label="Лавка">🧪</button>
       <button class="gear" id="settings-btn" type="button" title="Настройки" aria-label="Настройки">⚙</button>
     </div>
   </header>
@@ -55,10 +59,6 @@
     </div>
     <div class="home-grid">
       <div class="town" id="town"></div>
-      <details class="home-list" id="home-list">
-        <summary class="eyebrow home-label">Все режимы списком</summary>
-        <div class="modes" id="modes"></div>
-      </details>
     </div>
   </section>
 
@@ -124,13 +124,14 @@
               </div>
               <p class="kbd"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> разведка · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> атака</p>
               <div class="scrolls">
-                <p class="eyebrow">Свитки подсказок <span id="hints-count"></span></p>
+                <p class="eyebrow">Пояс и свитки <span id="hints-count"></span></p>
                 <div class="hints" id="hints"></div>
               </div>
             </div>
             <div class="desk-circle">
               <p class="eyebrow">Пентаграмма</p>
               <div class="pentagram" id="pentagram"></div>
+              <span class="mana-cost" id="mana-cost"></span>
             </div>
           </div>
         </section>
@@ -147,7 +148,7 @@
   <section class="screen" data-screen="design" hidden></section>
   <section class="screen" data-screen="jobs" hidden></section>
   <section class="screen" data-screen="jmeter" hidden></section>
-  <section class="screen" data-screen="inventory" hidden></section>
+  <section class="screen" data-screen="shop" hidden></section>
 </div>
 
 <section class="gate" id="auth-gate" hidden></section>
@@ -157,7 +158,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
 <script src="progression.js"></script>
 <script src="core.js"></script>
-<script src="rewards.js"></script>
+<script src="shop.js"></script>
 <script src="data.js"></script>
 <script src="rooms-act1.js"></script>
 <script src="rooms-act2.js"></script>
@@ -195,6 +196,7 @@
 <script src="jobs.js"></script>
 <script src="teacher.js"></script>
 <script src="town.js"></script>
+<script src="music.js"></script>
 <script>window.Core.start();</script>
 </body>
 </html>

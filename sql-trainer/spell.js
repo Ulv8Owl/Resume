@@ -266,7 +266,18 @@
     root.classList.add(cls);
   }
 
+  // Мана за заклинание: большие печати (вершины звезды ᛟ ᚠ ᛉ ᚷ ᛏ) дорогие, малые руны между ними — дешевле.
+  const MAJOR_COST = 12;
+  const MINOR_COST = 4;
+  function cost(sql) {
+    const q = strip(sql || '').toUpperCase();
+    const major = VERTICES.filter((v) => v.resolve(q)).length;
+    const minor = MINOR.filter((r) => (r.test ? r.test(q) : r.re.test(q))).length;
+    return { major, minor, total: major * MAJOR_COST + minor * MINOR_COST };
+  }
+
   window.Spell = {
+    cost,
     init(host, db) {
       checkDb = db;
       if (!root) build(host);

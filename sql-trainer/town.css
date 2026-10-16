@@ -3,7 +3,7 @@
 /* ---------- главный экран ---------- */
 .home .home-avatar { width: 150px; height: 150px; }
 .home .home-hero { padding: 16px 20px; }
-.home-grid { grid-template-columns: minmax(300px, 560px) minmax(0, 1fr); align-items: start; }
+.home-grid { grid-template-columns: minmax(0, 560px); justify-content: center; }
 .home-list { display: grid; gap: 8px; align-content: start; }
 .home-list > summary { cursor: pointer; list-style: none; padding: 6px 0; }
 .home-list > summary::-webkit-details-marker { display: none; }

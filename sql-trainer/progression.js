@@ -38,6 +38,7 @@
     name,
     xp: Math.round(TOTAL_XP * ARCHMAGE_SHARE * f),
     maxHp: 100 + 20 * k,
+    maxMana: 100 + 20 * k,
     avatar: `Avatars/${k + 1}.webp`,
     index: k,
   }));

@@ -196,13 +196,11 @@
     const xpText = first && !session.review ? ` +${cardXp(card)} XP.` : '';
     session.result = { ok: true, text: `Засчитано: ${got} из ${card.points.length} пунктов.${gold ? ` +${gold} золота.` : ''}${xpText}` };
     const up = Core.rankUp(before);
-    const video = Rewards.drop('theory');
     Core.save();
     Core.renderHud();
     renderSide();
     renderStage();
-    if (video) Rewards.showDrop(video, up.lines);
-    else if (up.rank) {
+    if (up.rank) {
       Core.modal(`<div class="big"><img class="modal-avatar" src="${Core.avatar(up.rank)}" alt=""></div><h3>Новое звание</h3><ul class="loot">${up.lines.join('')}</ul>
         <button class="btn attack" id="modal-close" type="button">Продолжить</button>`);
     }

@@ -110,8 +110,7 @@
         const open = unlocked(i);
         const cls = `sim-level${l === level ? ' active' : ''}${ls.cleared ? ' cleared' : ''}${open ? '' : ' locked'}`;
         const tip = `${i + 1}. ${l.title}${ls.cleared ? ' · ' + starStr(ls.stars) : open ? '' : ' · откроется после уровня ' + i}`;
-        const reward = Rewards.isSimRewardLevel(i) && !ls.cleared;
-        return `<button class="${cls}" type="button" data-i="${i}" title="${esc(tip + (reward ? ' · 🎬 видео-награда' : ''))}" ${open ? '' : 'disabled'}>${open ? i + 1 : '🔒'}${ls.cleared ? `<small>${'★'.repeat(ls.stars)}</small>` : reward ? '<small class="sim-level-reward">🎬</small>' : ''}</button>`;
+        return `<button class="${cls}" type="button" data-i="${i}" title="${esc(tip)}" ${open ? '' : 'disabled'}>${open ? i + 1 : '🔒'}${ls.cleared ? `<small>${'★'.repeat(ls.stars)}</small>` : ''}</button>`;
       }).join('');
       levelsEl.querySelectorAll('.sim-level:not([disabled])').forEach((b) => b.addEventListener('click', () => { level = opts.levels[+b.dataset.i]; startLevel(); }));
 
@@ -214,24 +213,19 @@
       Core.renderHud();
       render();
       const next = opts.levels[idx + 1];
-      const video = Rewards.isSimRewardLevel(idx) ? Rewards.grant(`sim:${opts.mode}:${level.id}`) : null;
-      if (video) Core.save();
       const items = [
         `<li><span>Золото${st.hints ? ` (${Math.round(HINT_MULT[st.hints] * 100)}%)` : ''}</span><span>+${gold}</span></li>`,
         `<li><span>Опыт</span><span>+${xpOfLevel(idx)} XP</span></li>`,
-        video ? '<li class="rank-up"><span>Видео-награда</span><span>🎬</span></li>' : '',
       ].concat(up.lines).join('');
       Core.modal(`
         <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : level.giver.sprite}</div>
         <h3>Испытание пройдено</h3>
         <div class="modal-stars">${starStr(st.stars)}</div>
         <ul class="loot">${items}</ul>
-        ${video ? Rewards.modalHtml(video) : ''}
         ${level.outro ? `<p class="modal-tip">${esc(level.outro)}</p>` : ''}
         <button class="btn attack" id="modal-next" type="button">${next ? `Уровень ${idx + 2} →` : 'К выбору режима'}</button>
         <button class="btn" id="modal-close" type="button">Остаться</button>
       `, { onNext: () => { if (next) { level = next; setTimeout(startLevel, 0); } else Core.go('home'); } });
-      if (video) Rewards.bindModal(video);
     }
 
     function startLevel() {
@@ -243,7 +237,6 @@
     }
 
     let started = false;
-    Rewards.registerSim(opts.mode, opts.levels);
     Core.registerMode(opts.mode, {
       icon: opts.icon,
       xpOf: (state) => {

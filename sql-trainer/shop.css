@@ -1,0 +1,23 @@
+/* Лавка и пояс с расходниками в бою. Токены цвета — из styles.css. */
+.shop-note, .shop-msg { margin: 0; color: var(--dust); font-size: var(--step--1); }
+.shop-msg { color: var(--rune); }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.shop-item { display: grid; gap: 8px; align-content: start; padding: 14px 16px; background: var(--slab); border: 1px solid var(--seam); border-radius: var(--radius); }
+.shop-head { display: flex; align-items: center; gap: 10px; }
+.shop-ico { font-size: 1.8rem; line-height: 1; }
+.shop-text, .shop-have { margin: 0; font-size: var(--step--1); color: var(--dust); }
+.shop-have b { color: var(--parchment); }
+.shop-buy { display: flex; flex-wrap: wrap; gap: 8px; }
+.shop-buy .btn { font-size: var(--step--1); padding: 6px 12px; }
+
+/* пояс в Подземелье */
+.belt { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; justify-content: center; }
+.belt button { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: var(--radius); border: 1px solid var(--seam);
+  background: var(--slab-2); color: var(--parchment); font: inherit; font-size: var(--step--1); cursor: pointer; touch-action: manipulation; }
+.belt button:hover:not(:disabled) { border-color: var(--torch); }
+.belt button:disabled { opacity: 0.4; cursor: not-allowed; }
+.belt button b { font-variant-numeric: tabular-nums; }
+.belt .belt-tier { font-size: 0.7rem; color: var(--torch); }
+.belt-shop { border-style: dashed !important; }
+.mana-cost { display: block; text-align: center; margin-top: 4px; font-size: var(--step--1); color: #8fb4ff; }
+.mana-cost.short { color: var(--blood); }

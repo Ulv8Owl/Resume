@@ -66,7 +66,7 @@
   // ---------- состояние ----------
 
   function freshState() {
-    return { v: 1, gold: 0, hp: P.RANKS[0].maxHp, sql: {}, theory: {}, sims: {}, updatedAt: 0 };
+    return { v: 1, gold: 0, hp: P.RANKS[0].maxHp, mana: P.RANKS[0].maxMana, items: {}, sql: {}, theory: {}, sims: {}, updatedAt: 0 };
   }
 
   // Прогресс старой версии (только SQL, в браузере) переносится в общее состояние.
@@ -129,10 +129,19 @@
     setSync('pending');
   };
 
+  // Перед записью подтягиваем облачную версию и объединяем: иначе два устройства (ссылка, локальный файл,
+  // телефон) по очереди затирали бы прогресс друг друга целиком.
   async function pushCloud() {
     if (!Core.account) return;
     setSync('saving');
     try {
+      const row = await loadRow(Core.account.id);
+      if (!isEmpty(row.state)) {
+        const merged = mergeStates(Core.state, row.state);
+        merged.updatedAt = Math.max(Core.state.updatedAt || 0, merged.updatedAt || 0);
+        Core.state = merged;
+        writeLocal();
+      }
       await call(client().from('qa_progress')
         .update({ state: Core.state, updated_at: new Date().toISOString() })
         .eq('user_id', Core.account.id));
@@ -187,6 +196,19 @@
   }
 
   function isEmpty(st) { return !st || !st.updatedAt; }
+
+  // Вернулся на вкладку — подтягиваем прогресс из облака: вдруг играл на другом устройстве.
+  async function pullCloud() {
+    if (!Core.account || Core.sync === 'saving' || Core.sync === 'pending') return;
+    try {
+      const row = await loadRow(Core.account.id);
+      if (isEmpty(row.state) || (row.state.updatedAt || 0) <= (Core.state.updatedAt || 0)) return;
+      Core.state = mergeStates(Core.state, row.state);
+      writeLocal();
+      Core.refresh();
+    } catch (e) { /* нет связи — поиграем на локальном */ }
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pullCloud(); });
   // Облако и браузер не перезаписывают друг друга, а объединяются: всё, что пройдено хотя бы в одном
   // сохранении, остаётся пройденным. Иначе пустое, но «более свежее» сохранение могло затереть весь прогресс.
   function adopt(cloudState) {
@@ -226,13 +248,12 @@
     const newer = (a.updatedAt || 0) >= (b.updatedAt || 0) ? a : b;
     const older = newer === a ? b : a;
     const out = Object.assign(freshState(), older, newer);
-    out.gold = num(a.gold, b.gold);
-    out.hp = num(a.hp, b.hp);
+    // золото, здоровье, мана и расходники тратятся — их берём из более свежего сохранения, а не максимум
     out.updatedAt = num(a.updatedAt, b.updatedAt);
 
     const sa = a.sql || {};
     const sb = b.sql || {};
-    out.sql = Object.assign({}, older.sql, newer.sql, { rooms: mergeMap(sa.rooms, sb.rooms, mergeStage) });
+    out.sql = Object.assign({}, older.sql, newer.sql, { rooms: mergeMap(sa.rooms, sb.rooms, mergeStage), extraXp: num(sa.extraXp, sb.extraXp) });
 
     out.sims = mergeMap(a.sims, b.sims, (x, y) => Object.assign({}, x, y, { levels: mergeMap(x.levels, y.levels, mergeStage) }));
 
@@ -243,16 +264,6 @@
       topics: mergeMap(ta.topics, tb.topics, (x, y) => ({ cleared: !!(x.cleared || y.cleared) })),
       bestStreak: num(ta.bestStreak, tb.bestStreak),
     });
-
-    const ra = a.rewards || {};
-    const rb = b.rewards || {};
-    if (ra.videos || rb.videos) {
-      out.rewards = {
-        videos: mergeMap(ra.videos, rb.videos, (x, y) => Object.assign({}, x, { plays: num(x.plays, y.plays) }, (x.fav || y.fav) ? { fav: true } : {})),
-        order: Array.from(new Set((ra.order || []).concat(rb.order || []))),
-        sources: Object.assign({}, rb.sources, ra.sources),
-      };
-    }
 
     const ja = a.jobs || {};
     const jb = b.jobs || {};
@@ -359,17 +370,18 @@
   };
   Core.rank = () => P.rankFor(Core.xp());
   Core.maxHp = () => Core.rank().maxHp;
+  Core.maxMana = () => Core.rank().maxMana;
 
   // Вызывается режимом после победы: возвращает строки добычи про новое звание и лечит при повышении.
   Core.rankUp = function rankUp(before) {
     const after = Core.rank();
     if (after.index <= before.index) return { rank: null, lines: [] };
-    Core.state.hp = after.maxHp;
     return {
       rank: after,
       lines: [
         `<li class="rank-up"><span>Новое звание</span><span>${esc(after.name)}</span></li>`,
         `<li><span>Максимум здоровья</span><span>${after.maxHp} HP</span></li>`,
+        `<li><span>Максимум маны</span><span>${after.maxMana}</span></li>`,
       ],
     };
   };
@@ -395,6 +407,12 @@
     $('hp-text').textContent = `${hp} / ${rk.maxHp}`;
     setBar($('hp-bar'), hp / rk.maxHp);
     $('hud-hp').hidden = Core.screen !== 'sql';
+    if (Core.state.mana == null) Core.state.mana = rk.maxMana;
+    const mana = Math.min(Core.state.mana, rk.maxMana);
+    Core.state.mana = mana;
+    $('mana-text').textContent = `${Math.floor(mana)} / ${rk.maxMana}`;
+    setBar($('mana-bar'), mana / rk.maxMana);
+    $('hud-mana').hidden = Core.screen !== 'sql';
     renderSync();
   };
 
@@ -465,26 +483,6 @@
     $('home-next').textContent = nx ? `До звания «${nx.name}»: ${nx.xp - xp} XP` : `Высшее звание · ${xp} XP`;
     setBar($('home-xp-bar'), nx ? (xp - rk.xp) / (nx.xp - rk.xp) : 1);
 
-    $('modes').innerHTML = P.MODES.map((m) => {
-      const api = Core.modes[m.id] || {};
-      const pr = api.progressOf ? api.progressOf(Core.state) : { done: 0, available: 0 };
-      const earned = Core.xpBy(m.id);
-      return `
-      <button class="mode-card" type="button" data-mode="${m.id}">
-        <span class="mode-icon" aria-hidden="true">${api.icon || '✦'}</span>
-        <span class="mode-name">${esc(m.name)}</span>
-        <span class="mode-tag">${esc(m.tagline)}</span>
-        <span class="mode-meta">
-          <span>${pr.text || `Пройдено: <b>${pr.done}</b> из ${pr.available} ${m.unit}`}</span>
-          <span class="bar xp"><i style="width:${Math.min(100, (earned / m.budget) * 100)}%"></i></span>
-          <span>Опыт: ${earned} / ${m.budget} XP · ${Math.round(m.share * 100)}% всего опыта</span>
-        </span>
-      </button>`;
-    }).join('');
-    document.querySelectorAll('.mode-card').forEach((b) => b.addEventListener('click', () => Core.go(b.dataset.mode)));
-    // на широком экране список режимов раскрыт рядом с башней, на телефоне свёрнут под ней
-    const list = $('home-list');
-    if (list && !list.dataset.init) { list.dataset.init = '1'; list.open = window.innerWidth > 1100; }
     if (window.Town) window.Town.render();
     if (window.Teacher) setTimeout(() => window.Teacher.greetIfNeeded(), 0);
   }
@@ -511,12 +509,18 @@
             : '<button class="btn attack" id="open-gate-btn" type="button">Войти или создать мага</button>'}</div>
         </div>
         <div class="settings-block">
+          <p class="eyebrow">Звук</p>
+          <label class="music-toggle"><input type="checkbox" id="music-toggle" ${window.Music && window.Music.enabled ? 'checked' : ''}> Фоновая музыка</label>
+        </div>
+        <div class="settings-block">
           <p class="eyebrow">Прогресс</p>
           <p class="acc-line">Сброс обнуляет опыт, золото и пройденные уровни во всех режимах.</p>
           <div class="acc-actions"><button class="ghost-btn" id="reset-all-btn" type="button">Сбросить весь прогресс</button></div>
         </div>
         <button class="btn" id="modal-close" type="button">Закрыть</button>
       </div>`);
+    const mt = $('music-toggle');
+    if (mt) mt.addEventListener('change', () => window.Music && window.Music.toggle(mt.checked));
     const rf = $('rename-form');
     if (rf) rf.addEventListener('submit', async (e) => {
       e.preventDefault();

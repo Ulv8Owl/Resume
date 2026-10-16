@@ -152,14 +152,10 @@
     toast = `${t.icon} ${t.name}: +${t.gold} 🪙 · +${t.xp} XP${bonus ? ` · цель дня выполнена: +${bonus} 🪙` : ''}`;
     const up = Core.rankUp(before);
     Core.track('jobs-action', { cat: catId, task: taskId });
-    const video = Rewards.drop('jobs');
-    undo.video = video;
-    if (video) toast += ' · 🎬 выпало видео!';
     Core.save();
     Core.renderHud();
     render();
-    if (video) Rewards.showDrop(video, up.lines);
-    else if (up.rank) {
+    if (up.rank) {
       Core.modal(`<div class="big"><img class="modal-avatar" src="${Core.avatar(up.rank)}" alt=""></div><h3>Новое звание</h3><ul class="loot">${up.lines.join('')}</ul>
         <button class="btn attack" id="modal-close" type="button">Продолжить</button>`);
     }
@@ -174,7 +170,6 @@
     const day = j.days[u.day];
     if (day) { day.all = Math.max(0, day.all - 1); if (!u.small) day.main = Math.max(0, day.main - 1); }
     if (u.bonus) delete j.bonus[u.day];
-    if (u.video) Rewards.revoke(u.video); // видео, выпавшее за отменённое действие, тоже забирается
     Core.state.gold = Math.max(0, Core.state.gold - u.gold);
     const i = j.log.indexOf(u.entry);
     if (i >= 0) j.log.splice(i, 1);

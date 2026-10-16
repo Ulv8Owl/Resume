@@ -23,9 +23,20 @@
   let viewAct = null;
 
   const room = () => D.rooms.find((r) => r.id === S().current);
+
+  // Бой в зале: монстр после победы не умирает навсегда — каждый заход это новый бой с полным здоровьем монстра.
+  const TICK_MS = 5000; // монстр бьёт каждые 5 секунд
+  const MANA_REGEN = 2; // мана, восстанавливаемая за тот же промежуток
+  let fight = { id: null, best: 0, wounds: 0, scrolls: [] };
+  function F() {
+    if (fight.id !== S().current) fight = { id: S().current, best: 0, wounds: 0, scrolls: [] };
+    return fight;
+  }
+  const resetFight = () => { fight = { id: S().current, best: 0, wounds: 0, scrolls: [] }; };
   const progress = () => S().rooms[S().current];
   const maxHp = () => Core.maxHp();
   const attackOf = (r) => D.attackFor(r, maxHp());
+  const tickOf = (r) => Math.max(1, Math.round(attackOf(r) * 0.4));
   const actOf = (r) => D.acts.findIndex((a) => r.index >= a.from && r.index < a.to);
 
   // ---------- рендер ----------
@@ -65,17 +76,14 @@
       b.disabled = !st.unlocked;
       b.title = st.unlocked ? `${r.floor}: ${r.monster} · ${r.topic}` : `${r.floor}: закрыт`;
       b.innerHTML = `<span class="tile-sprite">${st.unlocked ? r.sprite : '🔒'}</span><span class="tile-num">${r.index + 1}</span>` +
-        `<span class="tile-stars">${st.cleared ? starStr(st.stars) : r.boss ? 'босс' : '&nbsp;'}</span>` +
-        (Rewards.isSqlRewardRoom(r.index) && !st.cleared ? '<span class="tile-reward" title="Видео-награда">🎬</span>' : '');
+        `<span class="tile-stars">${st.cleared ? starStr(st.stars) : r.boss ? 'босс' : '&nbsp;'}</span>`;
       b.addEventListener('click', () => switchRoom(r.id));
       tiles.appendChild(b);
     });
   }
 
   function monsterHp() {
-    const r = room();
-    const st = progress();
-    return st.cleared ? 0 : Math.round(r.maxHp * (1 - st.best));
+    return Math.round(room().maxHp * (1 - F().best));
   }
 
   function renderArena() {
@@ -84,20 +92,20 @@
     $('arena').classList.toggle('boss', !!r.boss);
     const sprite = $('monster-sprite');
     sprite.textContent = r.sprite;
-    sprite.classList.toggle('dead', st.cleared);
+    sprite.classList.remove('dead');
     $('monster-floor').textContent = `${r.floor} · ${D.acts[actOf(r)].name}`;
     $('monster-name').innerHTML = esc(r.monster) + (r.boss ? '<span class="boss-tag">БОСС</span>' : '');
     const hp = monsterHp();
     setBar($('monster-bar'), hp / r.maxHp);
-    $('monster-meta').textContent = st.cleared
-      ? 'Повержен. Можно потренироваться ещё раз, но без добычи.'
-      : `HP ${hp} / ${r.maxHp} · бьёт на ${attackOf(r)} за промах`;
+    $('monster-meta').textContent = `HP ${hp} / ${r.maxHp} · бьёт на ${tickOf(r)} каждые 5 с и на ${attackOf(r)} за промах` +
+      (st.cleared ? ` · побеждён ${st.wins || 1} раз` : '');
     $('monster-intro').textContent = r.intro;
   }
 
-  function rewardFor(r, st) {
-    const mult = D.hintMultipliers[st.hints];
-    return { gold: Math.round(r.gold * mult), xp: r.xp, stars: 3 - st.hints, mult };
+  // Звёзды — по самому сильному свитку, прочитанному в этом бою. Золото и опыт — полные: свитки уже куплены.
+  function rewardFor(r) {
+    const tier = F().scrolls.length ? Math.max(...F().scrolls) : 0;
+    return { gold: r.gold, xp: r.xp, stars: 3 - tier };
   }
 
   function renderTask() {
@@ -107,37 +115,64 @@
     $('task-spell').innerHTML = `Заклинание: <b>${esc(r.spell)}</b> · ${esc(r.topic)}`;
     const order = r.kind === 'query' ? (r.ordered ? ' · порядок строк проверяется' : ' · порядок строк не важен') : '';
     $('task-tables').innerHTML = 'Таблицы: ' + r.tables.map((t) => `<code>${t}</code>`).join(', ') + order;
-    const rw = rewardFor(r, st);
-    $('reward').innerHTML = st.cleared
-      ? `<span class="stars">${starStr(st.stars)}</span><span class="muted">Зал зачищен</span>`
-      : `<span>Добыча:</span><span class="chip gold">🪙 <b>${rw.gold}</b></span><span class="chip">✦ ${rw.xp} XP</span>` +
-        (Rewards.isSqlRewardRoom(r.index) ? '<span class="chip" title="Случайное видео из тех, что ещё не получены">🎬 видео</span>' : '') +
-        `<span class="stars">${starStr(rw.stars)}</span>` +
-        (rw.mult < 1 ? `<span class="muted">подсказки срезали золото до ${Math.round(rw.mult * 100)}%</span>` : '');
+    const rw = rewardFor(r);
+    $('reward').innerHTML = `<span>Добыча:</span><span class="chip gold">🪙 <b>${rw.gold}</b></span><span class="chip">✦ ${rw.xp} XP</span>` +
+      `<span class="stars">${starStr(rw.stars)}</span>` + (st.cleared ? `<span class="muted">лучшее: ${starStr(st.stars)}</span>` : '');
   }
 
+  // Свитки, прочитанные в этом бою, и пояс с расходниками: зелья и три свитка, в любом порядке.
+  const TIERS = ['', 'Малый свиток', 'Свиток', 'Великий свиток'];
   function renderHints() {
     const r = room();
-    const st = progress();
     const box = $('hints');
-    box.innerHTML = '';
-    r.hints.slice(0, st.hints).forEach((text, i) => {
-      const d = document.createElement('div');
-      d.className = 'hint open';
-      d.innerHTML = `<span class="lvl">${'I'.repeat(i + 1)}</span><span class="body">${text}</span>`;
-      box.appendChild(d);
-    });
-    if (st.hints < r.hints.length) {
-      const i = st.hints;
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'hint';
-      const cost = st.cleared ? 'бесплатно' : `золото → ${Math.round(D.hintMultipliers[i + 1] * 100)}%`;
-      b.innerHTML = `<span class="lvl">${'I'.repeat(i + 1)}</span><span>Сломать печать свитка</span><span class="cost">${cost}</span>`;
-      b.addEventListener('click', () => openHint(i));
-      box.appendChild(b);
+    const read = F().scrolls.slice().sort();
+    box.innerHTML = read.map((t) => `<div class="hint open"><span class="lvl">${'I'.repeat(t)}</span><span class="body">${r.hints[t - 1]}</span></div>`).join('') +
+      (read.length ? '' : '<p class="muted belt-empty">Свитки заклинаний подсказывают решение: малый — направление, обычный — подробнее, великий — почти готовое заклинание.</p>');
+    const items = window.Shop.ITEMS;
+    box.insertAdjacentHTML('beforeend', `<div class="belt" aria-label="Пояс с расходниками">${items.map((it, i) => {
+      const tier = it.id.startsWith('scroll') ? +it.id.slice(-1) : 0;
+      const used = tier && F().scrolls.includes(tier);
+      return `<button type="button" data-use="${it.id}" title="${it.name}: ${it.text}" ${window.Shop.count(it.id) && !used ? '' : 'disabled'}>
+        ${it.icon}${tier ? `<span class="belt-tier">${'I'.repeat(tier)}</span>` : ''} <b>${window.Shop.count(it.id)}</b></button>`;
+    }).join('')}<button type="button" class="belt-shop" data-go-shop>🧪 Лавка</button></div>`);
+    box.querySelectorAll('[data-use]').forEach((b) => b.addEventListener('click', () => useItem(b.dataset.use)));
+    box.querySelector('[data-go-shop]').addEventListener('click', () => Core.go('shop'));
+    $('hints-count').textContent = read.length ? `прочитано ${read.length} из 3` : '';
+  }
+
+  function useItem(id) {
+    const r = room();
+    const p = Core.state;
+    const tier = id.startsWith('scroll') ? +id.slice(-1) : 0;
+    if (tier && F().scrolls.includes(tier)) return;
+    if (!window.Shop.take(id)) return;
+    if (id === 'hp') {
+      const heal = Math.min(Math.round(maxHp() * 0.5), maxHp() - p.hp);
+      p.hp += heal;
+      floater('+' + heal, 'heal');
+      log('info', `Зелье жизни: +${heal} HP.`);
+    } else if (id === 'mana') {
+      const add = Math.min(Math.round(Core.maxMana() * 0.6), Core.maxMana() - p.mana);
+      p.mana += add;
+      log('info', `Зелье маны: +${add} маны.`);
+    } else {
+      F().scrolls.push(tier);
+      log('info', `${TIERS[tier]} прочитан: ${r.monster} уже не так страшен.`);
     }
-    $('hints-count').textContent = `открыто ${st.hints} из ${r.hints.length}`;
+    save();
+    renderHud();
+    renderHints();
+    renderTask();
+    renderCost();
+  }
+
+  // Сколько маны стоит заклинание в книге — под пентаграммой.
+  function renderCost() {
+    const el = $('mana-cost');
+    if (!el) return;
+    const c = Spell.cost(currentSql());
+    el.textContent = c.total ? `Заклинание: ${c.major} печат${c.major === 1 ? 'ь' : c.major < 5 && c.major > 1 ? 'и' : 'ей'} и ${c.minor} рун — ${c.total} маны` : 'Печати пентаграммы тратят ману: большие — 12, малые руны — 4';
+    el.classList.toggle('short', c.total > Core.state.mana);
   }
 
   // Короткая строка о последнем событии боя прямо под монстром.
@@ -266,6 +301,7 @@
     renderTask();
     renderHints();
     renderSchema();
+    renderCost();
   }
 
   // ---------- эффекты ----------
@@ -314,7 +350,7 @@
   function hurtPlayer(dmg, why) {
     const p = Core.state;
     p.hp = Math.max(0, Math.min(p.hp, maxHp()) - dmg);
-    progress().wounds++;
+    F().wounds++;
     floater('−' + dmg, 'hurt');
     pulse($('arena'), 'flash');
     log('hurt', `${why} −${dmg} HP.`);
@@ -345,11 +381,17 @@
     const sql = currentSql().trim();
     if (!sql) return;
 
+    const cost = Spell.cost(sql).total;
+    if (Core.state.mana < cost) {
+      log('hurt', `Не хватает маны: заклинание стоит ${cost}, у тебя ${Math.floor(Core.state.mana)}. Выпей зелье маны или подожди — мана понемногу восстанавливается.`);
+      renderCost();
+      return;
+    }
+    Core.state.mana -= cost;
     const ev = judge.evaluate(r, sql);
     if (ev.error) {
       renderResult(null, { error: ev.error });
       Spell.fizzle();
-      if (st.cleared) return;
       hurtPlayer(Math.ceil(attackOf(r) / 2), `Заклинание рассеялось (ошибка SQL). ${r.monster} пользуется моментом:`);
       return finishTurn();
     }
@@ -359,15 +401,10 @@
     const extra = d.changes ? `Изменено строк: ${d.changes}.` : null;
     renderResult(d.res, { verdict: verdictEl(ev), label: d.label, note: d.res ? null : extra });
 
-    if (st.cleared) {
-      log('info', ev.exact ? 'Тренировочный удар точен.' : 'Тренировочный удар мимо.');
-      if (ev.exact) Core.track('sql-room', { id: r.id, replay: true });
-      return finishTurn();
-    }
-
-    if (ev.sim > st.best) {
-      const dmg = Math.round(r.maxHp * (ev.sim - st.best));
-      st.best = ev.sim;
+    const f = F();
+    if (ev.sim > f.best) {
+      const dmg = Math.round(r.maxHp * (ev.sim - f.best));
+      f.best = ev.sim;
       floater('−' + dmg, 'dmg');
       pulse($('monster-sprite'), 'hit');
       log('dmg', `Ты наносишь ${dmg} урона.` + (ev.exact ? '' : ' ' + r.taunts[Math.floor(Math.random() * r.taunts.length)]));
@@ -384,33 +421,27 @@
     save();
     renderHud();
     renderArena();
-  }
-
-  function openHint(i) {
-    const st = progress();
-    if (i !== st.hints) return;
-    st.hints++;
-    // в зачищенном зале подсказки ничего не стоят: награда уже получена
-    if (!st.cleared) log('info', `Сломана печать свитка ${'I'.repeat(i + 1)}. Золото за зал теперь ${Math.round(D.hintMultipliers[st.hints] * 100)}%.`);
-    save();
-    renderHints();
-    renderTask();
+    renderCost();
   }
 
   function victory() {
     const r = room();
     const st = progress();
     const p = Core.state;
-    const rw = rewardFor(r, st);
-    const bonus = st.wounds === 0 ? Math.round(rw.gold * 0.25) : 0;
+    const rw = rewardFor(r);
+    const wounds = F().wounds;
+    const bonus = wounds === 0 ? Math.round(rw.gold * 0.25) : 0;
     const before = Core.rank();
 
+    // первая победа засчитывается как пройденный зал, повторные — добавляют тот же опыт сверху
+    if (st.cleared) S().extraXp = (S().extraXp || 0) + rw.xp;
     st.cleared = true;
+    st.wins = (st.wins || 0) + 1;
     st.best = 1;
     Core.track('sql-room', { id: r.id });
-    st.stars = rw.stars;
+    st.stars = Math.max(st.stars || 0, rw.stars);
     p.gold += rw.gold + bonus;
-    // опыт не копится в переменной: он считается из пройденного, поэтому зал уже учтён
+    resetFight();
     const up = Core.rankUp(before);
     let heal = 0;
     if (!up.rank) {
@@ -419,7 +450,6 @@
     }
     const next = D.rooms[r.index + 1];
     if (next) S().rooms[next.id].unlocked = true;
-    const video = Rewards.isSqlRewardRoom(r.index) ? Rewards.grant('sql:' + r.id) : null;
 
     log('win', `Победа в зале ${r.index + 1}! +${rw.gold + bonus} золота, +${rw.xp} XP.`);
     if (up.rank) log('win', `Ты достиг звания: ${up.rank.name}.`);
@@ -428,11 +458,10 @@
     renderAll();
 
     const items = [
-      `<li><span>Золото${rw.mult < 1 ? ` (${Math.round(rw.mult * 100)}%)` : ''}</span><span>+${rw.gold}</span></li>`,
-      bonus ? `<li><span>Без единой царапины</span><span>+${bonus}</span></li>` : `<li class="minus"><span>Получено ран</span><span>${st.wounds}</span></li>`,
+      `<li><span>Золото</span><span>+${rw.gold}</span></li>`,
+      bonus ? `<li><span>Без единой царапины</span><span>+${bonus}</span></li>` : `<li class="minus"><span>Получено ран</span><span>${wounds}</span></li>`,
       `<li><span>Опыт</span><span>+${rw.xp} XP</span></li>`,
       heal ? `<li><span>Отдых у костра</span><span>+${heal} HP</span></li>` : '',
-      video ? '<li class="rank-up"><span>Видео-награда</span><span>🎬</span></li>' : '',
     ].concat(up.lines).join('');
     const finale = !next
       ? '<p>Дракон пал. Подземелье запросов зачищено.</p>'
@@ -441,15 +470,13 @@
     Core.modal(`
       <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : r.sprite}</div>
       <h3>Победа!</h3>
-      <p class="modal-tip">${esc(r.monster)} больше не стоит у тебя на пути.</p>
+      <p class="modal-tip">${esc(r.monster)} повержен. Он вернётся, если захочешь сразиться снова — за ту же добычу.</p>
       <div class="modal-stars">${starStr(rw.stars)}</div>
       <ul class="loot">${items}</ul>
-      ${video ? Rewards.modalHtml(video) : ''}
       ${finale}${nextAct}
       ${next ? `<button class="btn attack" id="modal-next" type="button">Дальше: ${esc(next.monster)}</button>` : ''}
-      <button class="btn" id="modal-close" type="button">Остаться в зале</button>
-    `, { onNext: () => next && switchRoom(next.id), onClose: () => $('sql').focus() });
-    if (video) Rewards.bindModal(video);
+      <button class="btn" id="modal-close" type="button">Сразиться снова</button>
+    `, { onNext: () => next && switchRoom(next.id), onClose: () => { renderAll(); $('sql').focus(); } });
   }
 
   function defeat() {
@@ -459,7 +486,8 @@
     const lost = Math.floor(p.gold * 0.25);
     p.gold -= lost;
     p.hp = maxHp();
-    st.best = 0;
+    p.mana = Core.maxMana();
+    resetFight();
     log('hurt', `Ты пал в бою. ${r.monster} восстановил силы. Потеряно ${lost} золота.`);
     save();
     renderAll();
@@ -469,8 +497,7 @@
       <p>${esc(r.monster)} оказался сильнее. Ты приходишь в себя в лагере у входа.</p>
       <ul class="loot">
         <li class="minus"><span>Потеряно золота</span><span>−${lost}</span></li>
-        <li><span>Здоровье восстановлено</span><span>${p.hp} HP</span></li>
-        <li><span>Открытые свитки остаются с тобой</span><span>${st.hints}</span></li>
+        <li><span>Здоровье и мана восстановлены</span><span>${p.hp} HP</span></li>
       </ul>
       <p class="modal-tip">Совет: «Разведать» бесплатно. Проверь заклинание перед атакой.</p>
       <button class="btn attack" id="modal-close" type="button">Вернуться в бой</button>
@@ -480,12 +507,12 @@
   function switchRoom(id) {
     if (!S().rooms[id] || !S().rooms[id].unlocked) return;
     S().current = id;
+    resetFight();
     viewAct = null;
     const r = room();
     $('sql').value = '';
     Spell.update('');
-    if (progress().cleared) log('info', 'Этот зал уже зачищен. Здесь можно тренироваться без риска.');
-    else log('info', `Ты входишь: ${r.floor}. Перед тобой ${r.monster}.`);
+    log('info', `Ты входишь: ${r.floor}. Перед тобой ${r.monster}.`);
     save();
     renderAll();
     scout();
@@ -507,7 +534,19 @@
         ta.setRangeText('  ', s, ta.selectionEnd, 'end');
       }
     });
-    ta.addEventListener('input', () => Spell.update(ta.value));
+    ta.addEventListener('input', () => { Spell.update(ta.value); renderCost(); });
+
+    // Монстр не ждёт: каждые 5 секунд бьёт, пока ты в зале. Мана тем временем понемногу копится.
+    setInterval(() => {
+      if (Core.screen !== 'sql' || !judge || modalOpen() || document.hidden || !$('auth-gate').hidden) return;
+      const p = Core.state;
+      p.mana = Math.min(Core.maxMana(), (p.mana || 0) + MANA_REGEN);
+      const r = room();
+      hurtPlayer(tickOf(r), `${r.monster} атакует:`);
+      // в облако это не пишем каждые 5 секунд — здоровье уйдёт с ближайшим действием
+      renderHud();
+      renderCost();
+    }, TICK_MS);
   }
 
   let opened = false;
@@ -518,7 +557,7 @@
       Spell.mount($('pentagram'));
       Spell.update('');
       const r = room();
-      log('info', progress().cleared ? 'Этот зал уже зачищен. Здесь можно тренироваться без риска.' : `Ты стоишь в зале ${r.index + 1}. Перед тобой ${r.monster}.`);
+      log('info', `Ты стоишь в зале ${r.index + 1}. Перед тобой ${r.monster}.`);
     }
     viewAct = null;
     renderAll();
@@ -547,7 +586,7 @@
     icon: '🐉',
     xpOf: (state) => {
       const rooms = (state.sql && state.sql.rooms) || {};
-      return D.rooms.reduce((sum, r) => sum + (rooms[r.id] && rooms[r.id].cleared ? r.xp : 0), 0);
+      return D.rooms.reduce((sum, r) => sum + (rooms[r.id] && rooms[r.id].cleared ? r.xp : 0), 0) + ((state.sql && state.sql.extraXp) || 0);
     },
     progressOf: (state) => {
       const rooms = (state.sql && state.sql.rooms) || {};

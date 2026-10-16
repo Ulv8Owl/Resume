@@ -1,6 +1,6 @@
 // Наставник-Архимаг: ежедневное задание и разговор.
 // Каждый день (по местному времени) задание новое: 20 карточек теории, 10 залов SQL и ещё два случайных дела.
-// Режимы сообщают о сделанном через Core.track, здесь это считается. За выполненное задание — золото и видео.
+// Режимы сообщают о сделанном через Core.track, здесь это считается. За выполненное задание — золото и расходники.
 (function () {
   'use strict';
 
@@ -9,6 +9,7 @@
   const esc = Core.esc;
   const PORTRAIT = 'Avatars/Teacher.jpeg';
   const REWARD_GOLD = 200;
+  const DAILY_ITEMS = [['hp', 2], ['mana', 2], ['scroll2', 1]];
 
   // Обязательные дела и пул случайных. count — сколько нужно; unique — считать разные залы/уровни, а не повторы.
   const REQUIRED = [
@@ -175,7 +176,7 @@
         </div>
         <p class="eyebrow">Задание на ${new Date().toLocaleDateString('ru', { day: 'numeric', month: 'long' })}${d.streak ? ` · 🔥 дней подряд: ${d.streak}` : ''}</p>
         ${taskList()}
-        ${reward ? `<button class="btn attack" id="teacher-claim" type="button">Забрать награду: ${REWARD_GOLD} 🪙 и видео 🎬</button>` : ''}
+        ${reward ? `<button class="btn attack" id="teacher-claim" type="button">Забрать награду: ${REWARD_GOLD} 🪙 и зелья 🧪</button>` : ''}
         <div class="teacher-talk">
           <button class="ghost-btn" type="button" data-talk="task">Зачем мне это задание?</button>
           <button class="ghost-btn" type="button" data-talk="next">Чем заняться дальше?</button>
@@ -201,12 +202,13 @@
       dd.claimed = true;
       dd.streak = (dd.streak || 0) + 1;
       Core.state.gold += REWARD_GOLD;
-      const video = window.Rewards ? window.Rewards.grant(`daily:${dd.date}`) : null;
+      // награда — золото и расходники в лавку: зелья и свиток
+      const it = Core.state.items || (Core.state.items = {});
+      DAILY_ITEMS.forEach(([k, n]) => { it[k] = (it[k] || 0) + n; });
       Core.save();
       Core.renderHud();
       close();
-      if (video) window.Rewards.showDrop(video, [`<li><span>Награда наставника</span><span>+${REWARD_GOLD} 🪙</span></li>`]);
-      else open('Держи золото. Видео для тебя пока не осталось — все уже у тебя.');
+      open(`Держи: ${REWARD_GOLD} золота, два зелья жизни, два зелья маны и обычный свиток. Они уже в твоей сумке.`);
       renderBadge();
     });
   }

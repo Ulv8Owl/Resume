@@ -3,6 +3,22 @@
 
   const D = window.DUNGEON;
   D.finalize();
+  // Во II и III актах — те же монстры и в том же порядке, что в I, только сильнее (сила растёт с номером зала).
+  D.rooms.forEach((r) => {
+    if (r.index < 30) return;
+    const base = D.rooms[r.index % 30];
+    r.monster = base.monster;
+    r.sprite = base.sprite;
+    r.taunts = base.taunts;
+  });
+  // Портрет монстра — клетка спрайтшита images/<1-10|11-20|21-30>/<акт>.jpeg: 5 по горизонтали, 2 по вертикали.
+  function portrait(r) {
+    const k = r.index % 30;
+    const act = Math.floor(r.index / 30);
+    const group = ['1-10', '11-20', '21-30'][Math.floor(k / 10)];
+    const cell = k % 10;
+    return `background-image:url('images/${group}/${act}.jpeg');background-position:${(cell % 5) * 25}% ${Math.floor(cell / 5) * 100}%`;
+  }
   const Core = window.Core;
   const $ = (id) => document.getElementById(id);
 
@@ -50,6 +66,23 @@
     $('cleared-text').textContent = `${D.rooms.filter((r) => S().rooms[r.id].cleared).length} / ${D.rooms.length}`;
   }
 
+  // Трофеи: портрет каждого побеждённого монстра; в каждом акте — новый портрет того же монстра.
+  function openTrophies() {
+    const rooms = S().rooms;
+    const close = Core.modal(`<div class="trophies">
+      <h3>Трофеи · ${D.rooms.filter((r) => rooms[r.id].cleared).length} / ${D.rooms.length}</h3>
+      ${D.acts.map((a) => `<p class="eyebrow">${esc(a.name)}</p><div class="trophy-grid">${D.rooms.slice(a.from, a.to).map((r) => rooms[r.id].cleared
+        ? `<button type="button" class="trophy" data-room="${r.index}" title="${esc(r.monster)}" style="${portrait(r)}"></button>`
+        : `<span class="trophy locked" title="Ещё не побеждён">${r.index + 1}</span>`).join('')}</div>`).join('')}
+      <button class="btn" id="modal-close" type="button">Закрыть</button></div>`);
+    document.querySelectorAll('.trophy[data-room]').forEach((b) => b.addEventListener('click', () => {
+      const r = D.rooms[+b.dataset.room];
+      close();
+      Core.modal(`<div class="trophy-big wide" style="${portrait(r)}"></div><h3>${esc(r.monster)}</h3><p class="modal-tip">${esc(r.floor)} · ${esc(D.acts[actOf(r)].name)}</p>
+        <button class="btn" id="modal-close" type="button">Закрыть</button>`, { onClose: openTrophies });
+    }));
+  }
+
   function renderMap() {
     if (viewAct == null) viewAct = actOf(room());
     const acts = $('acts');
@@ -75,7 +108,7 @@
       b.className = 'tile' + (r.id === S().current ? ' current' : '') + (st.cleared ? ' cleared' : '') + (st.unlocked ? '' : ' locked') + (r.boss ? ' boss' : '');
       b.disabled = !st.unlocked;
       b.title = st.unlocked ? `${r.floor}: ${r.monster} · ${r.topic}` : `${r.floor}: закрыт`;
-      b.innerHTML = `<span class="tile-sprite">${st.unlocked ? r.sprite : '🔒'}</span><span class="tile-num">${r.index + 1}</span>` +
+      b.innerHTML = (st.unlocked ? `<span class="tile-img" style="${portrait(r)}"></span>` : '<span class="tile-sprite">🔒</span>') + `<span class="tile-num">${r.index + 1}</span>` +
         `<span class="tile-stars">${st.cleared ? starStr(st.stars) : r.boss ? 'босс' : '&nbsp;'}</span>`;
       b.addEventListener('click', () => switchRoom(r.id));
       tiles.appendChild(b);
@@ -91,7 +124,9 @@
     const st = progress();
     $('arena').classList.toggle('boss', !!r.boss);
     const sprite = $('monster-sprite');
-    sprite.textContent = r.sprite;
+    sprite.textContent = '';
+    sprite.setAttribute('style', portrait(r));
+    sprite.classList.add('portrait');
     sprite.classList.remove('dead');
     $('monster-floor').textContent = `${r.floor} · ${D.acts[actOf(r)].name}`;
     $('monster-name').innerHTML = esc(r.monster) + (r.boss ? '<span class="boss-tag">БОСС</span>' : '');
@@ -99,7 +134,7 @@
     setBar($('monster-bar'), hp / r.maxHp);
     $('monster-meta').textContent = `HP ${hp} / ${r.maxHp} · бьёт на ${tickOf(r)} каждые 5 с и на ${attackOf(r)} за промах` +
       (st.cleared ? ` · побеждён ${st.wins || 1} раз` : '');
-    $('monster-intro').textContent = r.intro;
+    $('monster-intro').textContent = '';
   }
 
   // Звёзды — по самому сильному свитку, прочитанному в этом бою. Золото и опыт — полные: свитки уже куплены.
@@ -434,6 +469,7 @@
     const before = Core.rank();
 
     // первая победа засчитывается как пройденный зал, повторные — добавляют тот же опыт сверху
+    const firstWin = !st.cleared;
     if (st.cleared) S().extraXp = (S().extraXp || 0) + rw.xp;
     st.cleared = true;
     st.wins = (st.wins || 0) + 1;
@@ -468,7 +504,8 @@
       : '';
     const nextAct = next && actOf(next) !== actOf(r) ? `<p class="act-open">Открыт ${esc(D.acts[actOf(next)].name)}</p>` : '';
     Core.modal(`
-      <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : r.sprite}</div>
+      <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : `<div class="trophy-big" style="${portrait(r)}"></div>`}</div>
+      ${firstWin ? '<p class="act-open">🏆 Новый трофей: портрет монстра в коллекции</p>' : ''}
       <h3>Победа!</h3>
       <p class="modal-tip">${esc(r.monster)} повержен. Он вернётся, если захочешь сразиться снова — за ту же добычу.</p>
       <div class="modal-stars">${starStr(rw.stars)}</div>
@@ -522,6 +559,11 @@
 
   function bind() {
     $('run-btn').addEventListener('click', scout);
+    $('trophies-btn').addEventListener('click', openTrophies);
+    // высота шапки — чтобы экран боя ровно занял окно без прокрутки
+    const hudH = () => document.documentElement.style.setProperty('--hud-h', document.querySelector('.hud').getBoundingClientRect().bottom + 'px');
+    window.addEventListener('resize', hudH);
+    hudH();
     $('attack-btn').addEventListener('click', attack);
     const ta = $('sql');
     ta.addEventListener('keydown', (e) => {

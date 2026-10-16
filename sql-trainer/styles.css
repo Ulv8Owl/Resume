@@ -324,3 +324,10 @@ td.null { color: var(--dust); font-style: italic; }
   .screen[data-screen="sql"] .desk-book textarea { min-height: 120px; }
   .screen[data-screen="sql"] .pentagram-svg { max-width: 200px; }
 }
+
+/* в бою шапки нет: назад и счётчик залов — в строке актов */
+body.in-sql .hud { display: none; }
+.map-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.map-top .acts { flex: 1 1 auto; }
+.map-home { margin-left: auto; }
+.belt { margin-top: 4px; justify-content: flex-start; }

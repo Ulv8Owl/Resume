@@ -8,8 +8,9 @@
 
   // planned — сколько уровней (или карточек) в режиме. Опыт за уровень берётся из бюджета режима.
   const MODES = [
-    { id: 'theory',   name: 'Теория',              share: 0.12, planned: 160, unit: 'карточек', tagline: 'Вопросы собеседования по всем темам тестирования' },
-    { id: 'sql',      name: 'SQL',                 share: 0.24, planned: 90,  unit: 'залов',    tagline: 'Подземелье запросов: от SELECT до процедур' },
+    { id: 'theory',   name: 'Библиотека',          share: 0.10, planned: 160, unit: 'карточек', tagline: 'Вопросы собеседования по всем темам тестирования' },
+    { id: 'blitz',    name: 'Блиц',                share: 0.06, planned: 90,  unit: 'монстров', tagline: 'Монстры Подземелья и вопросы по теории: 4 варианта, один верный' },
+    { id: 'sql',      name: 'SQL',                 share: 0.20, planned: 90,  unit: 'залов',    tagline: 'Подземелье запросов: от SELECT до процедур' },
     { id: 'design',   name: 'Тест-дизайн',         share: 0.07, planned: 20,  unit: 'задач',    tagline: 'Классы эквивалентности, границы, таблицы решений, pairwise' },
     { id: 'swagger',  name: 'API · Swagger',       share: 0.09, planned: 20,  unit: 'уровней',  tagline: 'Читать документацию и пробовать эндпоинты' },
     { id: 'postman',  name: 'API · Postman',       share: 0.10, planned: 20,  unit: 'уровней',  tagline: 'Запросы, окружения, авторизация, тесты' },

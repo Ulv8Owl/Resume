@@ -68,13 +68,22 @@
   }
 
   // Трофеи: портрет каждого побеждённого монстра; в каждом акте — новый портрет того же монстра.
+  // Трофей живёт 10 минут после победы (в SQL или Блице), потом снова закрывается.
+  const TROPHY_MS = 10 * 60 * 1000;
+  function giveTrophy(r) {
+    const t = Core.state.trophies || (Core.state.trophies = {});
+    t[r.index] = Date.now();
+  }
+  const trophyLeft = (r) => { const at = (Core.state.trophies || {})[r.index]; return at ? Math.max(0, at + TROPHY_MS - Date.now()) : 0; };
+  const mmss = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
   function openTrophies() {
-    const rooms = S().rooms;
+    const active = D.rooms.filter((r) => trophyLeft(r) > 0).length;
     const close = Core.modal(`<div class="trophies">
-      <h3>Трофеи · ${D.rooms.filter((r) => rooms[r.id].cleared).length} / ${D.rooms.length}</h3>
-      ${D.acts.map((a) => `<p class="eyebrow">${esc(a.name)}</p><div class="trophy-grid">${D.rooms.slice(a.from, a.to).map((r) => rooms[r.id].cleared
-        ? `<button type="button" class="trophy" data-room="${r.index}" title="${esc(r.monster)}" style="${portrait(r, true)}"></button>`
-        : `<span class="trophy locked" title="Ещё не побеждён">${r.index + 1}</span>`).join('')}</div>`).join('')}
+      <h3>Трофеи · ${active} / ${D.rooms.length}</h3>
+      <p class="modal-tip">Портрет монстра открывается на 10 минут после победы над ним — в SQL или в Блице.</p>
+      ${D.acts.map((a) => `<p class="eyebrow">${esc(a.name)}</p><div class="trophy-grid">${D.rooms.slice(a.from, a.to).map((r) => trophyLeft(r) > 0
+        ? `<button type="button" class="trophy" data-room="${r.index}" title="${esc(r.monster)} · ещё ${mmss(trophyLeft(r))}" style="${portrait(r, true)}"><small>${mmss(trophyLeft(r))}</small></button>`
+        : `<span class="trophy locked" title="Победи монстра, чтобы открыть портрет на 10 минут">${r.index + 1}</span>`).join('')}</div>`).join('')}
       <button class="btn" id="modal-close" type="button">Закрыть</button></div>`);
     document.querySelectorAll('.trophy[data-room]').forEach((b) => b.addEventListener('click', () => {
       const r = D.rooms[+b.dataset.room];
@@ -470,7 +479,7 @@
     const before = Core.rank();
 
     // первая победа засчитывается как пройденный зал, повторные — добавляют тот же опыт сверху
-    const firstWin = !st.cleared;
+    giveTrophy(r);
     if (st.cleared) S().extraXp = (S().extraXp || 0) + rw.xp;
     st.cleared = true;
     st.wins = (st.wins || 0) + 1;
@@ -506,7 +515,7 @@
     const nextAct = next && actOf(next) !== actOf(r) ? `<p class="act-open">Открыт ${esc(D.acts[actOf(next)].name)}</p>` : '';
     Core.modal(`
       <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : `<div class="trophy-big" style="${portrait(r, true)}"></div>`}</div>
-      ${firstWin ? '<p class="act-open">🏆 Новый трофей: портрет монстра в коллекции</p>' : ''}
+      <p class="act-open">🏆 Трофей: портрет монстра в коллекции на 10 минут</p>
       <h3>Победа!</h3>
       <p class="modal-tip">${esc(r.monster)} повержен. Он вернётся, если захочешь сразиться снова — за ту же добычу.</p>
       <div class="modal-stars">${starStr(rw.stars)}</div>
@@ -561,6 +570,7 @@
   function bind() {
     $('run-btn').addEventListener('click', scout);
     Core.openTrophies = openTrophies;
+    window.Dungeon = { portrait, giveTrophy, attackFor: (r) => D.attackFor(r, Core.maxHp()) };
     // высота шапки — чтобы экран боя ровно занял окно без прокрутки
     const hudH = () => document.documentElement.style.setProperty('--hud-h', Math.max(0, document.querySelector('.hud').getBoundingClientRect().bottom) + 'px');
     window.addEventListener('resize', hudH);

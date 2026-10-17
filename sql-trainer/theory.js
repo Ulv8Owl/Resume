@@ -1,4 +1,4 @@
-// Режим «Теория»: карточки с вопросами собеседования. Игрок отвечает про себя и честно сверяется с ключевыми пунктами.
+// Режим «Библиотека» (теория): карточки с вопросами собеседования. Игрок отвечает про себя и честно сверяется с ключевыми пунктами.
 (function () {
   'use strict';
 
@@ -33,7 +33,7 @@
   screen.innerHTML = `
     <div class="sim-head">
       <button class="ghost-btn" type="button" data-home>← К выбору режима</button>
-      <h2 class="sim-title"><span aria-hidden="true">🔮</span> Теория</h2>
+      <h2 class="sim-title"><span aria-hidden="true">📚</span> Библиотека</h2>
     </div>
     <div class="th-board">
       <aside class="panel th-side">
@@ -236,7 +236,7 @@
     renderSide();
     renderStage();
     Core.modal(`
-      <div class="big">🔮</div>
+      <div class="big">📚</div>
       <h3>${firstClear ? 'Тема пройдена' : 'Колода пройдена'}</h3>
       <ul class="loot">
         <li><span>Вопросов в колоде</span><span>${done.total}</span></li>
@@ -250,7 +250,7 @@
   }
 
   Core.registerMode('theory', {
-    icon: '🔮',
+    icon: '📚',
     xpOf: (state) => {
       const cards = (state.theory && state.theory.cards) || {};
       return allCards.reduce((sum, c) => sum + (cards[c.id] && cards[c.id].known ? cardXp(c) : 0), 0);

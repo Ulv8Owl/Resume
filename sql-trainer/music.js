@@ -34,7 +34,7 @@
   function sync() {
     if (!unlocked) return;
     if (!enabled) { audio.pause(); return; }
-    const want = Core.screen === 'sql' ? 'battle' : 'town';
+    const want = Core.screen === 'sql' || Core.screen === 'blitz' ? 'battle' : 'town';
     if (want !== mode) {
       mode = want;
       if (want === 'battle') play('Battle'); else play(TOWN[townIndex]);

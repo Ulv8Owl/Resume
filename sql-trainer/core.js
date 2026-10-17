@@ -199,7 +199,7 @@
 
   // Вне Подземелья (в башне и других режимах) здоровье и мана восстанавливаются: +15 каждые 5 секунд.
   setInterval(() => {
-    if (Core.screen === 'sql' || document.hidden) return;
+    if (Core.screen === 'sql' || Core.screen === 'blitz' || document.hidden) return;
     const st = Core.state;
     const hp = Math.min(Core.maxHp(), (st.hp || 0) + 15);
     const mana = Math.min(Core.maxMana(), (st.mana || 0) + 15);
@@ -268,6 +268,12 @@
     const sb = b.sql || {};
     out.sql = Object.assign({}, older.sql, newer.sql, { rooms: mergeMap(sa.rooms, sb.rooms, mergeStage), extraXp: num(sa.extraXp, sb.extraXp) });
 
+    if (a.blitz || b.blitz) {
+      const ba = a.blitz || {};
+      const bb = b.blitz || {};
+      out.blitz = Object.assign({}, older.blitz, newer.blitz, { rooms: mergeMap(ba.rooms, bb.rooms, mergeStage), extraXp: num(ba.extraXp, bb.extraXp) });
+    }
+    out.trophies = mergeMap(a.trophies, b.trophies, num);
     out.sims = mergeMap(a.sims, b.sims, (x, y) => Object.assign({}, x, y, { levels: mergeMap(x.levels, y.levels, mergeStage) }));
 
     const ta = a.theory || {};
@@ -450,7 +456,7 @@
 
   Core.go = function go(screen) {
     Core.screen = screen;
-    document.body.classList.toggle('in-sql', screen === 'sql'); // в бою шапка прячется — больше места для боя
+    document.body.classList.toggle('in-sql', screen === 'sql' || screen === 'blitz'); // в бою шапка прячется — больше места для боя
     document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.dataset.screen !== screen; });
     const m = Core.modes[screen];
     if (m && m.open) m.open();

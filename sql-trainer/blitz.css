@@ -1,0 +1,16 @@
+/* Режим «Блиц». Токены цвета — из styles.css. */
+.blitz-board { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; align-items: start; }
+.blitz-pips { display: flex; gap: 6px; margin-bottom: 6px; }
+.blitz-pips i { flex: 1; height: 12px; border-radius: 6px; background: var(--blood); }
+.blitz-pips i.done { background: var(--seam); }
+.blitz-pips i.now { box-shadow: 0 0 0 2px var(--torch); }
+.blitz-q { display: grid; gap: 10px; }
+.blitz-text { margin: 0; font-size: 1.25rem; line-height: 1.4; }
+.blitz-sub, .blitz-reward { margin: 0; color: var(--dust); font-size: var(--step--1); }
+.blitz-options { display: grid; gap: 8px; }
+.blitz-opt { text-align: left; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--seam); background: var(--slab-2);
+  color: var(--parchment); font: inherit; line-height: 1.35; cursor: pointer; }
+.blitz-opt:hover { border-color: var(--torch); background: color-mix(in srgb, var(--torch) 12%, var(--slab-2)); }
+.trophy { position: relative; }
+.trophy small { position: absolute; left: 2px; bottom: 2px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, #000 65%, transparent); color: #fff; font-size: 0.6rem; }
+@media (max-width: 1100px) { .blitz-board { grid-template-columns: minmax(0, 1fr); } }

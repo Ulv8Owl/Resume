@@ -17,9 +17,10 @@
     { mode: 'charles',  room: 'Зал API, шар',      short: 'Charles',     x: 41.7, y: 23,   w: 16.6, h: 16, compact: true },
     { mode: 'postman',  room: 'Зал API, карты',    short: 'Postman',     x: 58.3, y: 23,   w: 16.7, h: 16, compact: true },
     { mode: 'design',   room: 'Совет магов',       short: 'Тест-дизайн', x: 25,   y: 40,   w: 50,   h: 14.8 },
-    { mode: 'theory',   room: 'Библиотека',        short: 'Теория',      x: 25,   y: 55.6, w: 50,   h: 14.2 },
+    { mode: 'theory',   room: 'Библиотека',        short: 'Библиотека',      x: 25,   y: 55.6, w: 50,   h: 14.2 },
     { mode: 'jmeter',   room: 'Мастерская голема', short: 'JMeter',      x: 25,   y: 71,   w: 50,   h: 12.8 },
-    { mode: 'sql',      room: 'Подземелье',        short: 'SQL',         x: 25,   y: 84.4, w: 50,   h: 12.8 },
+    { mode: 'blitz',    room: 'Дверь подземелья, верх', short: 'Блиц',   x: 30,   y: 84.4, w: 40,   h: 6.3, compact: true },
+    { mode: 'sql',      room: 'Дверь подземелья, низ',  short: 'SQL',    x: 30,   y: 90.8, w: 40,   h: 6.4, compact: true },
   ];
 
   function progressText(m) {

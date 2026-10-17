@@ -42,8 +42,8 @@
   const room = () => D.rooms.find((r) => r.id === S().current);
 
   // Бой в зале: монстр после победы не умирает навсегда — каждый заход это новый бой с полным здоровьем монстра.
-  const TICK_MS = 5000; // монстр бьёт каждые 5 секунд
-  const MANA_REGEN = 2; // мана, восстанавливаемая за тот же промежуток
+  const TICK_MS = 10000; // монстр бьёт каждые 10 секунд
+  const MANA_REGEN = 4; // мана, восстанавливаемая за тот же промежуток
   let fight = { id: null, best: 0, wounds: 0, scrolls: [] };
   function F() {
     if (fight.id !== S().current) fight = { id: S().current, best: 0, wounds: 0, scrolls: [] };
@@ -142,7 +142,7 @@
     $('monster-name').innerHTML = esc(r.monster) + (r.boss ? '<span class="boss-tag">БОСС</span>' : '');
     const hp = monsterHp();
     setBar($('monster-bar'), hp / r.maxHp);
-    $('monster-meta').textContent = `HP ${hp} / ${r.maxHp} · бьёт на ${tickOf(r)} каждые 5 с и на ${attackOf(r)} за промах` +
+    $('monster-meta').textContent = `HP ${hp} / ${r.maxHp} · бьёт на ${tickOf(r)} каждые 10 с и на ${attackOf(r)} за промах` +
       (st.cleared ? ` · побеждён ${st.wins || 1} раз` : '');
     $('monster-intro').textContent = '';
   }
@@ -589,14 +589,14 @@
     });
     ta.addEventListener('input', () => { Spell.update(ta.value); renderCost(); });
 
-    // Монстр не ждёт: каждые 5 секунд бьёт, пока ты в зале. Мана тем временем понемногу копится.
+    // Монстр не ждёт: каждые 10 секунд бьёт, пока ты в зале. Мана тем временем понемногу копится.
     setInterval(() => {
       if (Core.screen !== 'sql' || !judge || modalOpen() || document.hidden || !$('auth-gate').hidden) return;
       const p = Core.state;
       p.mana = Math.min(Core.maxMana(), (p.mana || 0) + MANA_REGEN);
       const r = room();
       hurtPlayer(tickOf(r), `${r.monster} атакует:`);
-      // в облако это не пишем каждые 5 секунд — здоровье уйдёт с ближайшим действием
+      // в облако это не пишем каждые 10 секунд — здоровье уйдёт с ближайшим действием
       renderHud();
       renderCost();
     }, TICK_MS);

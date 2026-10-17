@@ -1,6 +1,6 @@
 // Режим «Блиц»: те же 90 монстров Подземелья (3 акта по 30), но вместо SQL — вопросы по теории.
 // У монстра 3 вопроса с 4 вариантами; чтобы победить, нужно ответить верно на все три.
-// Каждый ответ тратит ману (против угадывания), ошибка — удар по игроку; монстр и так бьёт каждые 5 секунд.
+// Каждый ответ тратит ману (против угадывания), ошибка — удар по игроку; монстр и так бьёт каждые 10 секунд.
 // Вопросы — в blitz-questions/act1..3.js (по 3 на монстра). Свиток ставит бой на паузу и открывается на весь экран.
 (function () {
   'use strict';
@@ -11,8 +11,8 @@
   const P = window.Progression;
   const esc = Core.esc;
   const ANSWER_MANA = 12;
-  const TICK_MS = 5000;
-  const MANA_REGEN = 2;
+  const TICK_MS = 10000;
+  const MANA_REGEN = 4;
   const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
   const shuffle = (a) => { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; };
@@ -78,7 +78,7 @@
           <p class="monster-floor">Монстр ${r.index + 1} · ${esc(D.acts[actOf(r)].name)}</p>
           <h2 class="monster-name">${esc(r.monster)}${r.boss ? '<span class="boss-tag">БОСС</span>' : ''}</h2>
           <div class="monster-hp"><div class="blitz-pips">${f.qs.map((x, i) => `<i class="${i < f.at ? 'done' : i === f.at ? 'now' : ''}"></i>`).join('')}</div>
-            <div class="monster-meta">Вопрос ${f.at + 1} из 3 · бьёт на ${tickOf(r)} каждые 5 с и на ${attackOf(r)} за ошибку · ответ стоит ${ANSWER_MANA} маны</div></div>
+            <div class="monster-meta">Вопрос ${f.at + 1} из 3 · бьёт на ${tickOf(r)} каждые 10 с и на ${attackOf(r)} за ошибку · ответ стоит ${ANSWER_MANA} маны</div></div>
           <div class="player-bars">
             <div><span>❤ Ты <b>${Core.state.hp} / ${Core.maxHp()}</b></span><div class="bar hp"><i style="width:${Core.state.hp / Core.maxHp() * 100}%"></i></div></div>
             <div><span>💧 Мана <b>${Math.floor(Core.state.mana)} / ${Core.maxMana()}</b></span><div class="bar mana"><i style="width:${Core.state.mana / Core.maxMana() * 100}%"></i></div></div>
@@ -226,7 +226,7 @@
       <button class="btn attack" id="modal-close" type="button">Вернуться в бой</button>`, { defeat: true });
   }
 
-  // монстр бьёт каждые 5 секунд, пока ты в Блице; мана понемногу копится
+  // монстр бьёт каждые 10 секунд, пока ты в Блице; мана понемногу копится
   setInterval(() => {
     if (Core.screen !== 'blitz' || Core.modalOpen() || document.hidden || !document.getElementById('auth-gate').hidden) return;
     const r = room();

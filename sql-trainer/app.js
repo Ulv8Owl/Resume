@@ -27,7 +27,7 @@
 
   function S() {
     const st = Core.state;
-    if (!st.sql || !st.sql.rooms) st.sql = { rooms: {}, current: D.rooms[0].id };
+    if (!st.sql || !st.sql.rooms) st.sql = Object.assign({ rooms: {}, current: D.rooms[0].id }, st.sql, { rooms: {} }); // extraXp (например, от Учителя) сохраняется
     D.rooms.forEach((r, i) => {
       if (!st.sql.rooms[r.id]) st.sql.rooms[r.id] = { unlocked: i === 0, cleared: false, stars: 0, hints: 0, best: 0, wounds: 0 };
     });

@@ -9,6 +9,9 @@
   const esc = Core.esc;
   const PORTRAIT = 'Avatars/Teacher.jpeg';
   const REWARD_GOLD = 200;
+  // опыт — как за пять боёв в Подземелье SQL (средний бой); копится в sql.extraXp, как опыт за повторные победы
+  const SQL_MODE = window.Progression.mode('sql');
+  const REWARD_XP = Math.round(SQL_MODE.budget / SQL_MODE.planned * 5);
   const DAILY_ITEMS = [['hp', 2], ['mana', 2], ['scroll2', 1]];
 
   // Обязательные дела и пул случайных. count — сколько нужно; unique — считать разные залы/уровни, а не повторы.
@@ -176,7 +179,7 @@
         </div>
         <p class="eyebrow">Задание на ${new Date().toLocaleDateString('ru', { day: 'numeric', month: 'long' })}${d.streak ? ` · 🔥 дней подряд: ${d.streak}` : ''}</p>
         ${taskList()}
-        ${reward ? `<button class="btn attack" id="teacher-claim" type="button">Забрать награду: ${REWARD_GOLD} 🪙 и зелья 🧪</button>` : ''}
+        ${reward ? `<button class="btn attack" id="teacher-claim" type="button">Забрать награду: ${REWARD_GOLD} 🪙, ${REWARD_XP} XP и зелья 🧪</button>` : ''}
         <div class="teacher-talk">
           <button class="ghost-btn" type="button" data-talk="task">Зачем мне это задание?</button>
           <button class="ghost-btn" type="button" data-talk="next">Чем заняться дальше?</button>
@@ -202,13 +205,17 @@
       dd.claimed = true;
       dd.streak = (dd.streak || 0) + 1;
       Core.state.gold += REWARD_GOLD;
+      const before = Core.rank();
+      const sql = Core.state.sql || (Core.state.sql = {});
+      sql.extraXp = (sql.extraXp || 0) + REWARD_XP;
+      const up = Core.rankUp(before);
       // награда — золото и расходники в лавку: зелья и свиток
       const it = Core.state.items || (Core.state.items = {});
       DAILY_ITEMS.forEach(([k, n]) => { it[k] = (it[k] || 0) + n; });
       Core.save();
       Core.renderHud();
       close();
-      open(`Держи: ${REWARD_GOLD} золота, два зелья жизни, два зелья маны и обычный свиток. Они уже в твоей сумке.`);
+      open(`Держи: ${REWARD_GOLD} золота, ${REWARD_XP} опыта${up.rank ? ` — и новое звание: ${up.rank.name}!` : ''}, два зелья жизни, два зелья маны и обычный свиток. Они уже в твоей сумке.`);
       renderBadge();
     });
   }

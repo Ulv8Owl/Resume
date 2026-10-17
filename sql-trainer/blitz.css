@@ -28,3 +28,5 @@
 .scroll-q { font-weight: 500; }
 .scroll-answer b { color: #1f5e2e; }
 .scroll-note { font-style: italic; color: #6a4a1a; }
+/* пояс и строка лога — на всю ширину арены, иначе пояс раздувает колонку портрета */
+.blitz-board .belt { grid-column: 1 / -1; }

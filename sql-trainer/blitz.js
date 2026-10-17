@@ -63,7 +63,7 @@
             const done = D.rooms.slice(a.from, a.to).filter((x) => st.rooms[x.id].cleared).length;
             return `<button type="button" class="act-tab${i === viewAct ? ' active' : ''}" data-act="${i}">${esc(a.name)} <small>${done}/30</small></button>`;
           }).join('')}</div>
-          <span class="chip">⚡ <b>${D.rooms.filter((x) => st.rooms[x.id].cleared).length} / ${D.rooms.length}</b></span>
+          <span class="chip" title="Пройдено монстров">🚪 <b>${D.rooms.filter((x) => st.rooms[x.id].cleared).length} / ${D.rooms.length}</b></span>
           <button class="ghost-btn map-home" type="button" data-home>← К выбору режима</button>
         </div>
         <div class="tiles">${D.rooms.slice(D.acts[viewAct].from, D.acts[viewAct].to).map((x) => {
@@ -195,6 +195,12 @@
     const next = D.rooms[r.index + 1];
     if (next) st.rooms[next.id].unlocked = true;
     const up = Core.rankUp(before);
+    // отдых у костра, как в SQL: после победы залечиваем часть ран (при новом ранге и так полное здоровье)
+    let heal = 0;
+    if (!up.rank) {
+      heal = Math.min(Math.round(Core.maxHp() * 0.35), Core.maxHp() - Core.state.hp);
+      Core.state.hp += heal;
+    }
     newFight();
     Core.save();
     Core.renderHud();
@@ -203,7 +209,7 @@
       <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : `<div class="trophy-big" style="${window.Dungeon.portrait(r, true)}"></div>`}</div>
       <h3>Победа!</h3>
       <div class="modal-stars">${starStr(stars)}</div>
-      <ul class="loot"><li><span>Золото</span><span>+${gold}</span></li><li><span>Опыт</span><span>+${xpOf(r)} XP</span></li>${up.lines.join('')}</ul>
+      <ul class="loot"><li><span>Золото</span><span>+${gold}</span></li><li><span>Опыт</span><span>+${xpOf(r)} XP</span></li>${heal ? `<li><span>Отдых у костра</span><span>+${heal} HP</span></li>` : ''}${up.lines.join('')}</ul>
       <p class="act-open">🏆 Трофей: портрет монстра в коллекции на 10 минут</p>
       ${next ? `<button class="btn attack" id="modal-next" type="button">Дальше: ${esc(next.monster)}</button>` : ''}
       <button class="btn" id="modal-close" type="button">Сразиться снова</button>`, {

@@ -197,18 +197,19 @@
 
   function isEmpty(st) { return !st || !st.updatedAt; }
 
-  // Вне Подземелья (в башне и других режимах) здоровье и мана восстанавливаются: +15 каждые 5 секунд.
+  // Вне Подземелья (в башне и других режимах) здоровье восстанавливается за 10 секунд: +20% каждые 2 секунды;
+  // мана — в прежнем темпе (+6 за 2 секунды).
   setInterval(() => {
     if (Core.screen === 'sql' || Core.screen === 'blitz' || document.hidden) return;
     const st = Core.state;
-    const hp = Math.min(Core.maxHp(), (st.hp || 0) + 15);
-    const mana = Math.min(Core.maxMana(), (st.mana || 0) + 15);
+    const hp = Math.min(Core.maxHp(), (st.hp || 0) + Math.ceil(Core.maxHp() * 0.2));
+    const mana = Math.min(Core.maxMana(), (st.mana || 0) + 6);
     if (hp === st.hp && mana === st.mana) return;
     st.hp = hp;
     st.mana = mana;
-    writeLocal(); // в облако уйдёт с ближайшим сохранением, не каждые 5 секунд
+    writeLocal(); // в облако уйдёт с ближайшим сохранением, не каждые 2 секунды
     Core.renderHud();
-  }, 5000);
+  }, 2000);
 
   // Вернулся на вкладку — подтягиваем прогресс из облака: вдруг играл на другом устройстве.
   async function pullCloud() {

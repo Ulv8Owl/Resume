@@ -1,8 +1,7 @@
 // Режим «Блиц»: те же 90 монстров Подземелья (3 акта по 30), но вместо SQL — вопросы по теории.
 // У монстра 3 вопроса с 4 вариантами; чтобы победить, нужно ответить верно на все три.
 // Каждый ответ тратит ману (против угадывания), ошибка — удар по игроку; монстр и так бьёт каждые 5 секунд.
-// Вопросы собираются из карточек Библиотеки: верный вариант — пункт ответа карточки,
-// неверные — пункты других карточек той же темы.
+// Вопросы — в blitz-questions/act1..3.js (по 3 на монстра). Свиток ставит бой на паузу и открывается на весь экран.
 (function () {
   'use strict';
 
@@ -14,11 +13,6 @@
   const ANSWER_MANA = 12;
   const TICK_MS = 5000;
   const MANA_REGEN = 2;
-  const ACT_TOPICS = [
-    ['basics', 'types', 'design', 'docs', 'bugs'],
-    ['sdlc', 'http', 'rest', 'db', 'web'],
-    ['mobile', 'perf', 'security', 'auto', 'git', 'agile'],
-  ];
   const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
   const shuffle = (a) => { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; };
@@ -36,24 +30,19 @@
   const attackOf = (r) => window.Dungeon.attackFor(r);
   const tickOf = (r) => Math.max(1, Math.round(attackOf(r) * 0.4));
 
-  function question(act, used) {
-    const topics = T.topics.filter((t) => ACT_TOPICS[act].includes(t.id));
-    const cards = topics.flatMap((t) => t.cards.map((c) => ({ c, t })));
-    let item = pick(cards);
-    for (let k = 0; k < 20 && used.has(item.c.id); k++) item = pick(cards);
-    used.add(item.c.id);
-    const right = pick(item.c.points);
-    const pool = item.t.cards.filter((c) => c !== item.c).flatMap((c) => c.points).filter((p) => !item.c.points.includes(p));
-    const wrong = shuffle(Array.from(new Set(pool))).slice(0, 3);
-    const options = shuffle([right].concat(wrong));
-    return { q: item.c.q, topic: item.t.name, options, right: options.indexOf(right) };
+  // Вопрос j монстра r: из файла акта. Варианты перемешиваются при каждом показе.
+  function question(r, j) {
+    const src = ((window.BLITZ_Q || {})[actOf(r)] || [])[(r.index % 30) * 3 + j];
+    if (!src) return { q: 'Вопросы для этого акта не загрузились.', options: ['—', '—', '—', '—'], right: 0, hint: '', why: '' };
+    const options = shuffle(src.a);
+    return { q: src.q, options, right: options.indexOf(src.a[0]), hint: src.hint, why: src.why, hidden: [], scrolls: [] };
   }
+  const reshuffle = (q) => { const right = q.options[q.right]; q.options = shuffle(q.options); q.right = q.options.indexOf(right); };
 
   let fight = null;
   function newFight() {
-    const used = new Set();
-    const act = actOf(room());
-    fight = { id: room().id, qs: [0, 1, 2].map(() => question(act, used)), at: 0, wounds: 0, mistakes: 0, note: '' };
+    const r = room();
+    fight = { id: r.id, qs: [0, 1, 2].map((j) => question(r, j)), at: 0, wounds: 0, mistakes: 0, scrolls: 0, note: '' };
   }
   const F = () => { if (!fight || fight.id !== room().id) newFight(); return fight; };
 
@@ -95,13 +84,17 @@
             <div><span>💧 Мана <b>${Math.floor(Core.state.mana)} / ${Core.maxMana()}</b></span><div class="bar mana"><i style="width:${Core.state.mana / Core.maxMana() * 100}%"></i></div></div>
           </div>
           ${f.note ? `<p class="arena-line ${f.noteCls || ''}">${esc(f.note)}</p>` : ''}
-          <div class="belt">${['hp', 'mana'].map((id) => { const it = window.Shop.item(id); return `<button type="button" data-use="${id}" title="${esc(it.name)}" ${window.Shop.count(id) ? '' : 'disabled'}>${it.icon} <b>${window.Shop.count(id)}</b></button>`; }).join('')}<button type="button" class="belt-shop" data-shop>🧪 Лавка</button></div>
+          <div class="belt">${['hp', 'mana', 'scroll1', 'scroll2', 'scroll3'].map((id) => {
+            const it = window.Shop.item(id);
+            const tier = id.startsWith('scroll') ? +id.slice(-1) : 0;
+            const off = !window.Shop.count(id) || (tier && q.scrolls.includes(tier));
+            return `<button type="button" data-use="${id}" title="${esc(it.name)}: ${esc(SCROLL_TEXT[tier] || it.text)}" ${off ? 'disabled' : ''}>${it.icon}${tier ? `<span class="belt-tier">${'I'.repeat(tier)}</span>` : ''} <b>${window.Shop.count(id)}</b></button>`;
+          }).join('')}<button type="button" class="belt-shop" data-shop>🧪 Лавка</button></div>
         </section>
         <section class="panel blitz-q">
-          <p class="eyebrow">${esc(q.topic)}</p>
+          <p class="eyebrow">Вопрос ${f.at + 1} из 3</p>
           <p class="blitz-text">${esc(q.q)}</p>
-          <p class="blitz-sub">Выбери утверждение, которое входит в верный ответ.</p>
-          <div class="blitz-options">${q.options.map((o, i) => `<button type="button" class="blitz-opt" data-opt="${i}">${esc(o)}</button>`).join('')}</div>
+          <div class="blitz-options">${q.options.map((o, i) => `<button type="button" class="blitz-opt${q.scrolls.includes(3) && i === q.right ? ' shown' : ''}" data-opt="${i}" ${q.hidden.includes(o) ? 'disabled' : ''}>${esc(o)}</button>`).join('')}</div>
           <p class="blitz-reward">Добыча: 🪙 ${goldOf(r)} · ✦ ${xpOf(r)} XP${st.rooms[r.id].cleared ? ` · лучшее: ${starStr(st.rooms[r.id].stars)}` : ''}</p>
         </section>
       </div>`;
@@ -113,7 +106,32 @@
     screen.querySelectorAll('[data-use]').forEach((b) => b.addEventListener('click', () => useItem(b.dataset.use)));
   }
 
+  const SCROLL_TEXT = ['', 'подсказка к вопросу', 'подсказка и минус два неверных варианта', 'верный ответ и пояснение'];
+
+  // Свиток: бой на паузе (пока открыто окно, монстр не бьёт), свиток — на весь экран, «OK» — продолжить.
+  function readScroll(tier) {
+    const f = F();
+    const q = f.qs[f.at];
+    if (q.scrolls.includes(tier) || !window.Shop.take('scroll' + tier)) return;
+    q.scrolls.push(tier);
+    f.scrolls++;
+    if (tier === 2) {
+      // «сгоревшие» варианты храним по тексту: после перемешивания они остаются выключенными
+      const wrong = shuffle(q.options.filter((o, i) => i !== q.right && !q.hidden.includes(o)));
+      q.hidden = q.hidden.concat(wrong.slice(0, 2));
+    }
+    Core.save();
+    render();
+    const title = ['', 'Малый свиток заклинания', 'Свиток заклинания', 'Великий свиток заклинания'][tier];
+    const body = tier === 3
+      ? `<p class="scroll-q">${esc(q.q)}</p><p class="scroll-answer">Верный ответ: <b>${esc(q.options[q.right])}</b></p><p>${esc(q.why)}</p>`
+      : `<p class="scroll-q">${esc(q.q)}</p><p>${esc(q.hint)}</p>${tier === 2 ? '<p class="scroll-note">Два неверных варианта сгорели вместе со свитком.</p>' : ''}`;
+    Core.modal(`<div class="scroll-view"><p class="eyebrow">Бой на паузе</p><h3>📜 ${title}</h3>${body}
+      <button class="btn attack" id="modal-close" type="button">OK — продолжить бой</button></div>`);
+  }
+
   function useItem(id) {
+    if (id.startsWith('scroll')) return readScroll(+id.slice(-1));
     if (!window.Shop.take(id)) return;
     const p = Core.state;
     if (id === 'hp') p.hp = Math.min(Core.maxHp(), p.hp + Math.round(Core.maxHp() * 0.5));
@@ -152,10 +170,9 @@
       if (f.at >= 3) return victory();
     } else {
       f.mistakes++;
-      // правильный ответ показываем, а вопрос заменяем новым — зубрить варианты не выйдет
-      const used = new Set(f.qs.map((x) => x.q));
-      f.qs[f.at] = question(actOf(r), used);
-      hurt(attackOf(r), `Неверно. Правильно: «${q.options[q.right]}». ${r.monster} бьёт:`);
+      // вопрос тот же, но варианты перемешиваются — тыкать по порядку не выйдет
+      reshuffle(q);
+      hurt(attackOf(r), `Неверно. ${r.monster} бьёт:`);
       if (p.hp === 0) return;
     }
     Core.save();
@@ -167,7 +184,7 @@
     const st = S();
     const rs = st.rooms[r.id];
     const before = Core.rank();
-    const stars = Math.max(1, 3 - fight.mistakes);
+    const stars = Math.max(1, 3 - fight.mistakes - fight.scrolls);
     const gold = goldOf(r) + (fight.wounds === 0 ? Math.round(goldOf(r) * 0.25) : 0);
     if (rs.cleared) st.extraXp = (st.extraXp || 0) + xpOf(r);
     rs.cleared = true;

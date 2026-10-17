@@ -14,3 +14,17 @@
 .trophy { position: relative; }
 .trophy small { position: absolute; left: 2px; bottom: 2px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, #000 65%, transparent); color: #fff; font-size: 0.6rem; }
 @media (max-width: 1100px) { .blitz-board { grid-template-columns: minmax(0, 1fr); } }
+.blitz-opt:disabled { opacity: 0.25; text-decoration: line-through; cursor: not-allowed; }
+.blitz-opt.shown { border-color: var(--rune); box-shadow: 0 0 0 1px var(--rune); }
+/* свиток — на весь экран */
+.overlay:has(.scroll-view) { padding: 0; }
+.modal:has(.scroll-view) { width: 100%; min-height: 100%; margin: 0; border-radius: 0; border: 0; display: grid; place-items: center;
+  background: radial-gradient(ellipse at center, #3a2c18, #120d07 75%); }
+.scroll-view { display: grid; gap: 14px; width: min(760px, 100%); padding: 32px 28px; text-align: left; color: #f3e6c8;
+  background: linear-gradient(#e9d9b0, #d8c391); color: #2b1f0e; border-radius: 14px; box-shadow: 0 30px 80px #000; }
+.scroll-view h3 { color: #5b3a12; }
+.scroll-view p { margin: 0; font-size: 1.1rem; line-height: 1.55; }
+.scroll-view .eyebrow { color: #7a5a2a; }
+.scroll-q { font-weight: 500; }
+.scroll-answer b { color: #1f5e2e; }
+.scroll-note { font-style: italic; color: #6a4a1a; }

@@ -38,12 +38,14 @@
       `background-position:${pct(cx / (sh.w - cw))} ${pct(cy / (sh.h - ch))}`;
   }
   // Трофей — отдельная картинка Images/<1-10|11-20|21-30>_Dung/<монстр>.jpg|jpeg (папка = акт). Видна только в окне трофеев.
+  // Трофеи лежат только на компьютере игрока (в git их нет), поэтому путь локальный — их видно при запуске index.html с диска.
+  const LOCAL = location.protocol === 'file:';
   const TROPHY_JPG = [["bat", "cave-troll", "ghost", "ghoul", "goblin", "rat", "snake", "zombie"], ["bat", "cave-troll", "ghost", "ghoul", "goblin", "rat", "snake", "spider", "warg", "zombie"], ["cave-troll", "ghoul", "goblin", "rat", "skeleton", "snake", "spider", "warg", "zombie"]]; // у этих файлов расширение .jpg, у остальных — .jpeg
   function trophyArt(r) {
     const act = Math.floor(r.index / 30);
     const id = D.rooms[r.index % 30].id;
     const dir = ['1-10', '11-20', '21-30'][act] + '_Dung';
-    return `background-image:url('${IMG}${dir}/${id}.${TROPHY_JPG[act].includes(id) ? 'jpg' : 'jpeg'}')`;
+    return `background-image:url('Images/${dir}/${id}.${TROPHY_JPG[act].includes(id) ? 'jpg' : 'jpeg'}')`;
   }
   const Core = window.Core;
   const $ = (id) => document.getElementById(id);
@@ -105,7 +107,8 @@
     const active = D.rooms.filter((r) => trophyLeft(r) > 0).length;
     const close = Core.modal(`<div class="trophies">
       <h3>Трофеи · ${active} / ${D.rooms.length}</h3>
-      <p class="modal-tip">Портрет монстра открывается на 10 минут после победы над ним — в SQL или в Блице.</p>
+      <p class="modal-tip">Портрет монстра открывается на 10 минут после победы над ним — в SQL, Блице или HTTP.</p>
+      ${LOCAL ? '' : '<p class="modal-tip">Картинки трофеев хранятся только на компьютере: чтобы их увидеть, открой игру локально (index.html). Прогресс общий — через аккаунт.</p>'}
       ${D.acts.map((a) => `<p class="eyebrow">${esc(a.name)}</p><div class="trophy-grid">${D.rooms.slice(a.from, a.to).map((r) => trophyLeft(r) > 0
         ? `<button type="button" class="trophy" data-room="${r.index}" title="${esc(r.monster)} · ещё ${mmss(trophyLeft(r))}" style="${trophyArt(r)}"><small>${mmss(trophyLeft(r))}</small></button>`
         : `<span class="trophy locked" title="Победи монстра, чтобы открыть портрет на 10 минут">${r.index + 1}</span>`).join('')}</div>`).join('')}

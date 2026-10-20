@@ -5,7 +5,7 @@
   'use strict';
 
   const Core = window.Core;
-  const BASE = 'https://raw.githubusercontent.com/Ulv8Owl/Resume/claude/sql-trainer-gamification-hw09tw/music/';
+  const BASE = 'https://raw.githubusercontent.com/Ulv8Owl/Resume/claude/music/'; // музыка — в отдельной ветке claude/music, чтобы код качался быстро
   const TOWN = ['Town1', 'Town2', 'Town3', 'Town4'];
   const KEY = 'qa-academy-music';
   const audio = new Audio();

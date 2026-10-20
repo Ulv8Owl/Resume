@@ -24,3 +24,15 @@
 .notes-text:focus { outline: none; border-color: var(--torch); }
 .notes-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .notes-count { color: var(--dust); font-size: var(--step--1); font-variant-numeric: tabular-nums; }
+.notes-forms { display: grid; gap: 8px; }
+.notes-tip { margin: 0; color: var(--dust); font-size: var(--step--1); }
+.notes-list li[draggable="true"] { cursor: grab; }
+.drop-on { outline: 2px dashed var(--torch); outline-offset: 2px; background: color-mix(in srgb, var(--torch) 12%, var(--slab)); }
+.notes-move { display: grid; gap: 12px; text-align: left; }
+.notes-tree { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 55dvh; overflow: auto; }
+.notes-tree li { padding-left: calc(var(--depth, 0) * 18px); }
+.notes-dest { width: 100%; text-align: left; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--seam); background: var(--slab-2); color: var(--parchment); font: inherit; cursor: pointer; }
+.notes-dest:hover:not(:disabled) { border-color: var(--torch); }
+.notes-dest:disabled { opacity: 0.45; cursor: default; }
+.notes-dest small { color: var(--dust); }
+.notes-new .btn { min-width: 160px; }

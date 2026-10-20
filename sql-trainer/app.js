@@ -19,6 +19,8 @@
     { w: 1380, h: 752, mid: 374, cols: [[285, 571, 855, 1141], [286, 570, 855, 1140]] },
     { w: 1408, h: 768, mid: 384, cols: [[282, 560, 845, 1124], [282, 561, 845, 1125]] },
   ];
+  // Картинки берутся прямо из репозитория (как музыка) — в Vercel каталог Images не выкладывается.
+  const IMG = 'https://raw.githubusercontent.com/Ulv8Owl/Resume/claude/sql-trainer-gamification-hw09tw/sql-trainer/Images/';
   const pct = (v) => +(v * 100).toFixed(3) + '%';
   function portrait(r) {
     const k = r.index % 30;
@@ -32,7 +34,7 @@
     const cw = Math.min(x1 - x0, (y1 - y0) * 0.75);
     const ch = cw / 0.75;
     const cx = x0 + (x1 - x0 - cw) / 2, cy = y0 + (y1 - y0 - ch) / 2;
-    return `background-image:url('Images/${Math.floor(k / 10) + 1}.jpeg');background-size:${pct(sh.w / cw)} ${pct(sh.h / ch)};` +
+    return `background-image:url('${IMG}${Math.floor(k / 10) + 1}.jpeg');background-size:${pct(sh.w / cw)} ${pct(sh.h / ch)};` +
       `background-position:${pct(cx / (sh.w - cw))} ${pct(cy / (sh.h - ch))}`;
   }
   // Трофей — отдельная картинка Images/<1-10|11-20|21-30>_Dung/<монстр>.jpg|jpeg (папка = акт). Видна только в окне трофеев.
@@ -41,7 +43,7 @@
     const act = Math.floor(r.index / 30);
     const id = D.rooms[r.index % 30].id;
     const dir = ['1-10', '11-20', '21-30'][act] + '_Dung';
-    return `background-image:url('Images/${dir}/${id}.${TROPHY_JPG[act].includes(id) ? 'jpg' : 'jpeg'}')`;
+    return `background-image:url('${IMG}${dir}/${id}.${TROPHY_JPG[act].includes(id) ? 'jpg' : 'jpeg'}')`;
   }
   const Core = window.Core;
   const $ = (id) => document.getElementById(id);

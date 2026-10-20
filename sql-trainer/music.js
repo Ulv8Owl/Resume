@@ -12,8 +12,10 @@
   audio.preload = 'none';
   audio.volume = 0.35;
 
+  const NOTES_KEY = 'qa-academy-music-notes';
   let enabled = true;
-  try { enabled = localStorage.getItem(KEY) !== 'off'; } catch (e) { /* по умолчанию включена */ }
+  let inNotes = true; // играть ли музыку в «Конспекте» (там её можно выключить отдельно)
+  try { enabled = localStorage.getItem(KEY) !== 'off'; inNotes = localStorage.getItem(NOTES_KEY) !== 'off'; } catch (e) { /* по умолчанию включена */ }
   let unlocked = false;
   let mode = null; // 'town' | 'battle'
   let townIndex = 0;
@@ -33,7 +35,7 @@
 
   function sync() {
     if (!unlocked) return;
-    if (!enabled) { audio.pause(); return; }
+    if (!enabled || (Core.screen === 'notes' && !inNotes)) { audio.pause(); return; }
     const want = Core.BATTLE.includes(Core.screen) ? 'battle' : 'town';
     if (want !== mode) {
       mode = want;
@@ -58,6 +60,12 @@
       enabled = on;
       try { localStorage.setItem(KEY, on ? 'on' : 'off'); } catch (e) { /* не запомнили */ }
       if (on) mode = null;
+      sync();
+    },
+    get inNotes() { return inNotes; },
+    toggleNotes(on) {
+      inNotes = on;
+      try { localStorage.setItem(NOTES_KEY, on ? 'on' : 'off'); } catch (e) { /* не запомнили */ }
       sync();
     },
   };

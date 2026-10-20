@@ -1,0 +1,26 @@
+/* Режим «Конспект»: каталоги, файлы и редактор. Токены цвета — из styles.css. */
+.screen[data-screen="notes"] { display: grid; gap: 12px; align-content: start; }
+.notes-music { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: var(--step--1); color: var(--dust); cursor: pointer; }
+.notes-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--dust); }
+.notes-crumbs b { color: var(--parchment); font-weight: 600; }
+.link-btn { background: none; border: 0; padding: 2px 0; color: var(--torch); font: inherit; cursor: pointer; }
+.link-btn:hover { text-decoration: underline; }
+.notes-new { display: flex; flex-wrap: wrap; gap: 8px; }
+.notes-new input { flex: 1 1 220px; min-width: 0; padding: 9px 12px; border-radius: var(--radius); border: 1px solid var(--seam); background: var(--ink); color: var(--parchment); font: inherit; }
+.notes-new input:focus { outline: none; border-color: var(--torch); }
+.notes-new small { opacity: 0.8; }
+.notes-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.notes-list li { display: flex; gap: 6px; align-items: stretch; }
+.notes-item { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--seam);
+  background: var(--slab); color: var(--parchment); font: inherit; text-align: left; cursor: pointer; }
+.notes-item:hover { border-color: var(--torch); }
+.notes-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notes-item small { color: var(--dust); white-space: nowrap; }
+.notes-empty { margin: 0; color: var(--dust); }
+.notes-del { justify-self: start; }
+.notes-editor { display: grid; gap: 8px; }
+.notes-text { width: 100%; min-height: calc(100dvh - 300px); min-height: max(320px, calc(100dvh - 300px)); resize: vertical; padding: 14px 16px; border-radius: var(--radius);
+  border: 1px solid var(--seam); background: var(--ink); color: var(--parchment); font: 1rem/1.6 inherit; font-family: inherit; }
+.notes-text:focus { outline: none; border-color: var(--torch); }
+.notes-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.notes-count { color: var(--dust); font-size: var(--step--1); font-variant-numeric: tabular-nums; }

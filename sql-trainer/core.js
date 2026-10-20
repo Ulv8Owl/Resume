@@ -276,6 +276,12 @@
       const bb = b[k] || {};
       out[k] = Object.assign({}, older[k], newer[k], { rooms: mergeMap(ba.rooms, bb.rooms, mergeStage), extraXp: num(ba.extraXp, bb.extraXp) });
     });
+    if (a.notes || b.notes) {
+      // каталоги и тексты — из более свежего сохранения, «уже оплаченные» счётчики — максимум (иначе награду можно получить дважды)
+      const na = a.notes || {};
+      const nb = b.notes || {};
+      out.notes = Object.assign({}, older.notes, newer.notes, { paidFolders: num(na.paidFolders, nb.paidFolders), paidFiles: num(na.paidFiles, nb.paidFiles) });
+    }
     out.trophies = mergeMap(a.trophies, b.trophies, num);
     out.sims = mergeMap(a.sims, b.sims, (x, y) => Object.assign({}, x, y, { levels: mergeMap(x.levels, y.levels, mergeStage) }));
 
@@ -458,6 +464,8 @@
   // ---------- экраны ----------
 
   Core.go = function go(screen) {
+    const prev = Core.modes[Core.screen];
+    if (prev && prev.close && Core.screen !== screen) prev.close(); // режим может подвести итоги при уходе (Конспект)
     Core.screen = screen;
     document.body.classList.toggle('in-sql', Core.BATTLE.includes(screen)); // в бою шапка прячется — больше места для боя
     document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.dataset.screen !== screen; });

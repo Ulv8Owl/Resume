@@ -137,7 +137,7 @@
 
   function nextAdvice() {
     // Совет, чем заняться: режим, где доля набранного опыта меньше всего.
-    const modes = P.MODES.filter((m) => Core.modes[m.id] && m.id !== 'jobs');
+    const modes = P.MODES.filter((m) => Core.modes[m.id] && m.id !== 'jobs' && m.budget > 0);
     let best = null;
     modes.forEach((m) => {
       const frac = Core.xpBy(m.id) / m.budget;

@@ -19,6 +19,8 @@
     { id: 'devtools', name: 'DevTools',            share: 0.09, planned: 20,  unit: 'уровней',  tagline: 'Console, Network, Elements, Application: ищем причину бага' },
     { id: 'git',      name: 'Git · GitLab CI',     share: 0.08, planned: 20,  unit: 'уровней',  tagline: 'Ветки, коммиты, merge request и пайплайны' },
     { id: 'jmeter',   name: 'Нагрузка · JMeter',   share: 0.08, planned: 20,  unit: 'уровней',  tagline: 'Тест-планы, потоки, ассерты и отчёты нагрузочного тестирования' },
+    // Конспект — без опыта: за слова и новые каталоги/файлы платится золото.
+    { id: 'notes',    name: 'Конспект',            share: 0,    planned: 0,   unit: 'слов',     tagline: 'Свои каталоги и конспекты; каждое новое слово — монета' },
     // Поиск работы — бесконечные задания: опыт копится без конца, но в звание засчитывается не больше бюджета режима.
     { id: 'jobs',     name: 'Поиск работы',        share: 0.05, planned: 0,   unit: 'действий', tagline: 'Отклики, резюме рекрутёрам, каналы и компании' },
   ];

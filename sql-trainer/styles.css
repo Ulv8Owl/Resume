@@ -285,16 +285,16 @@ td.null { color: var(--dust); font-style: italic; }
 .bar.mana > i { background: #4f8cff; }
 
 /* ---------- портреты монстров и трофеи ---------- */
-.monster.portrait { width: 132px; aspect-ratio: 1; font-size: 0; border-radius: 12px; border: 2px solid var(--seam);
-  background-size: 500% 200%; background-repeat: no-repeat; background-color: var(--ink); }
+.monster.portrait { width: 132px; aspect-ratio: 3 / 4; font-size: 0; border-radius: 12px; border: 2px solid var(--seam);
+  background-repeat: no-repeat; background-color: var(--ink); }
+.monster.portrait.win-portrait { width: 150px; margin: 0 auto; filter: none; }
 .arena.boss .monster.portrait { width: 150px; border-color: var(--blood); }
-.tile-img { display: block; width: 100%; max-width: 46px; aspect-ratio: 1; border-radius: 6px; background-size: 500% 200%; background-repeat: no-repeat; }
-.trophy-big { width: 220px; aspect-ratio: 1; margin: 0 auto; border-radius: 12px; border: 2px solid var(--torch); background-size: 500% 200%; background-repeat: no-repeat; }
-.trophy-big.wide { width: min(380px, 100%); }
+.tile-img { display: block; width: 100%; max-width: 40px; aspect-ratio: 3 / 4; border-radius: 6px; background-repeat: no-repeat; }
+.trophy-big { width: min(340px, 100%, 45dvh); aspect-ratio: 3 / 4; margin: 0 auto; border-radius: 12px; border: 2px solid var(--torch); background-size: cover; background-position: center; background-repeat: no-repeat; }
 .modal:has(.trophies) { width: min(900px, 100%); }
 .trophies { display: grid; gap: 10px; text-align: left; }
 .trophy-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; }
-.trophy { aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--seam); background-size: 500% 200%; background-repeat: no-repeat; cursor: zoom-in; padding: 0; }
+.trophy { aspect-ratio: 3 / 4; border-radius: 8px; border: 1px solid var(--seam); background-size: cover; background-position: center; background-repeat: no-repeat; cursor: zoom-in; padding: 0; }
 .trophy:hover { border-color: var(--torch); }
 .trophy.locked { display: grid; place-items: center; background: var(--slab-2); color: var(--dust); font-size: 0.75rem; cursor: default; }
 @media (max-width: 720px) { .trophy-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } .monster.portrait { width: 96px; } }

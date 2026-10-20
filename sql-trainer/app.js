@@ -11,14 +11,37 @@
     r.sprite = base.sprite;
     r.taunts = base.taunts;
   });
-  // Портрет монстра — клетка спрайтшита images/<1-10|11-20|21-30>/<акт>.jpeg: 5 по горизонтали, 2 по вертикали.
-  // В бою и на карте — портреты I акта для всех актов; портреты II и III актов — только в трофеях.
-  function portrait(r, trophy) {
+  // Портрет монстра в бою, на карте и на экране победы — клетка спрайтшита Images/<1|2|3>.jpeg (5 × 2):
+  // 1 — монстры 1–10, 2 — 11–20, 3 — 21–30. Клетки разной ширины, поэтому границы подобраны по каждому листу.
+  // Из клетки вырезается кадр 3:4 по центру — без растяжения.
+  const SHEETS = [
+    { w: 1380, h: 752, mid: 369, cols: [[282, 571, 856, 1142], [282, 568, 856, 1140]] },
+    { w: 1380, h: 752, mid: 374, cols: [[285, 571, 855, 1141], [286, 570, 855, 1140]] },
+    { w: 1408, h: 768, mid: 384, cols: [[282, 560, 845, 1124], [282, 561, 845, 1125]] },
+  ];
+  const pct = (v) => +(v * 100).toFixed(3) + '%';
+  function portrait(r) {
     const k = r.index % 30;
-    const act = trophy ? Math.floor(r.index / 30) : 0;
-    const group = ['1-10', '11-20', '21-30'][Math.floor(k / 10)];
-    const cell = k % 10;
-    return `background-image:url('images/${group}/${act}.jpeg');background-position:${(cell % 5) * 25}% ${Math.floor(cell / 5) * 100}%`;
+    const sh = SHEETS[Math.floor(k / 10)];
+    const row = Math.floor((k % 10) / 5);
+    const col = k % 5;
+    const xs = [0, ...sh.cols[row], sh.w];
+    const pad = 5; // поля клетки: на листах есть тонкие рамки между кадрами
+    const x0 = xs[col] + pad, x1 = xs[col + 1] - pad;
+    const y0 = (row ? sh.mid : 0) + pad, y1 = (row ? sh.h : sh.mid) - pad;
+    const cw = Math.min(x1 - x0, (y1 - y0) * 0.75);
+    const ch = cw / 0.75;
+    const cx = x0 + (x1 - x0 - cw) / 2, cy = y0 + (y1 - y0 - ch) / 2;
+    return `background-image:url('Images/${Math.floor(k / 10) + 1}.jpeg');background-size:${pct(sh.w / cw)} ${pct(sh.h / ch)};` +
+      `background-position:${pct(cx / (sh.w - cw))} ${pct(cy / (sh.h - ch))}`;
+  }
+  // Трофей — отдельная картинка Images/<1-10|11-20|21-30>_Dung/<монстр>.jpg|jpeg (папка = акт). Видна только в окне трофеев.
+  const TROPHY_JPG = [["bat", "cave-troll", "ghost", "ghoul", "goblin", "rat", "snake", "zombie"], ["bat", "cave-troll", "ghost", "ghoul", "goblin", "rat", "snake", "spider", "warg", "zombie"], ["cave-troll", "ghoul", "goblin", "rat", "skeleton", "snake", "spider", "warg", "zombie"]]; // у этих файлов расширение .jpg, у остальных — .jpeg
+  function trophyArt(r) {
+    const act = Math.floor(r.index / 30);
+    const id = D.rooms[r.index % 30].id;
+    const dir = ['1-10', '11-20', '21-30'][act] + '_Dung';
+    return `background-image:url('Images/${dir}/${id}.${TROPHY_JPG[act].includes(id) ? 'jpg' : 'jpeg'}')`;
   }
   const Core = window.Core;
   const $ = (id) => document.getElementById(id);
@@ -82,13 +105,13 @@
       <h3>Трофеи · ${active} / ${D.rooms.length}</h3>
       <p class="modal-tip">Портрет монстра открывается на 10 минут после победы над ним — в SQL или в Блице.</p>
       ${D.acts.map((a) => `<p class="eyebrow">${esc(a.name)}</p><div class="trophy-grid">${D.rooms.slice(a.from, a.to).map((r) => trophyLeft(r) > 0
-        ? `<button type="button" class="trophy" data-room="${r.index}" title="${esc(r.monster)} · ещё ${mmss(trophyLeft(r))}" style="${portrait(r, true)}"><small>${mmss(trophyLeft(r))}</small></button>`
+        ? `<button type="button" class="trophy" data-room="${r.index}" title="${esc(r.monster)} · ещё ${mmss(trophyLeft(r))}" style="${trophyArt(r)}"><small>${mmss(trophyLeft(r))}</small></button>`
         : `<span class="trophy locked" title="Победи монстра, чтобы открыть портрет на 10 минут">${r.index + 1}</span>`).join('')}</div>`).join('')}
       <button class="btn" id="modal-close" type="button">Закрыть</button></div>`);
     document.querySelectorAll('.trophy[data-room]').forEach((b) => b.addEventListener('click', () => {
       const r = D.rooms[+b.dataset.room];
       close();
-      Core.modal(`<div class="trophy-big wide" style="${portrait(r, true)}"></div><h3>${esc(r.monster)}</h3><p class="modal-tip">${esc(r.floor)} · ${esc(D.acts[actOf(r)].name)}</p>
+      Core.modal(`<div class="trophy-big" style="${trophyArt(r)}"></div><h3>${esc(r.monster)}</h3><p class="modal-tip">${esc(r.floor)} · ${esc(D.acts[actOf(r)].name)}</p>
         <button class="btn" id="modal-close" type="button">Закрыть</button>`, { onClose: openTrophies });
     }));
   }
@@ -514,7 +537,7 @@
       : '';
     const nextAct = next && actOf(next) !== actOf(r) ? `<p class="act-open">Открыт ${esc(D.acts[actOf(next)].name)}</p>` : '';
     Core.modal(`
-      <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : `<div class="trophy-big" style="${portrait(r, true)}"></div>`}</div>
+      <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : `<div class="monster portrait win-portrait" style="${portrait(r)}"></div>`}</div>
       <p class="act-open">🏆 Трофей: портрет монстра в коллекции на 10 минут</p>
       <h3>Победа!</h3>
       <p class="modal-tip">${esc(r.monster)} повержен. Он вернётся, если захочешь сразиться снова — за ту же добычу.</p>

@@ -206,7 +206,7 @@
     Core.renderHud();
     render();
     Core.modal(`
-      <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : `<div class="trophy-big" style="${window.Dungeon.portrait(r, true)}"></div>`}</div>
+      <div class="big">${up.rank ? `<img class="modal-avatar" src="${Core.avatar(up.rank)}" alt="">` : `<div class="monster portrait win-portrait" style="${window.Dungeon.portrait(r)}"></div>`}</div>
       <h3>Победа!</h3>
       <div class="modal-stars">${starStr(stars)}</div>
       <ul class="loot"><li><span>Золото</span><span>+${gold}</span></li><li><span>Опыт</span><span>+${xpOf(r)} XP</span></li>${heal ? `<li><span>Отдых у костра</span><span>+${heal} HP</span></li>` : ''}${up.lines.join('')}</ul>

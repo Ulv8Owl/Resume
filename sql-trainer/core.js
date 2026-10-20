@@ -108,6 +108,7 @@
     syncNote: '',
     modes: {},
     screen: 'home',
+    BATTLE: ['sql', 'blitz', 'http'], // экраны боя: без шапки, с боевой музыкой и без отдыха
     P,
     esc,
   };
@@ -200,7 +201,7 @@
   // Вне Подземелья (в башне и других режимах) здоровье восстанавливается за 10 секунд: +20% каждые 2 секунды;
   // мана — в прежнем темпе (+6 за 2 секунды).
   setInterval(() => {
-    if (Core.screen === 'sql' || Core.screen === 'blitz' || document.hidden) return;
+    if (Core.BATTLE.includes(Core.screen) || document.hidden) return;
     const st = Core.state;
     const hp = Math.min(Core.maxHp(), (st.hp || 0) + Math.ceil(Core.maxHp() * 0.2));
     const mana = Math.min(Core.maxMana(), (st.mana || 0) + 6);
@@ -269,11 +270,12 @@
     const sb = b.sql || {};
     out.sql = Object.assign({}, older.sql, newer.sql, { rooms: mergeMap(sa.rooms, sb.rooms, mergeStage), extraXp: num(sa.extraXp, sb.extraXp) });
 
-    if (a.blitz || b.blitz) {
-      const ba = a.blitz || {};
-      const bb = b.blitz || {};
-      out.blitz = Object.assign({}, older.blitz, newer.blitz, { rooms: mergeMap(ba.rooms, bb.rooms, mergeStage), extraXp: num(ba.extraXp, bb.extraXp) });
-    }
+    ['blitz', 'http'].forEach((k) => {
+      if (!a[k] && !b[k]) return;
+      const ba = a[k] || {};
+      const bb = b[k] || {};
+      out[k] = Object.assign({}, older[k], newer[k], { rooms: mergeMap(ba.rooms, bb.rooms, mergeStage), extraXp: num(ba.extraXp, bb.extraXp) });
+    });
     out.trophies = mergeMap(a.trophies, b.trophies, num);
     out.sims = mergeMap(a.sims, b.sims, (x, y) => Object.assign({}, x, y, { levels: mergeMap(x.levels, y.levels, mergeStage) }));
 
@@ -457,7 +459,7 @@
 
   Core.go = function go(screen) {
     Core.screen = screen;
-    document.body.classList.toggle('in-sql', screen === 'sql' || screen === 'blitz'); // в бою шапка прячется — больше места для боя
+    document.body.classList.toggle('in-sql', Core.BATTLE.includes(screen)); // в бою шапка прячется — больше места для боя
     document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.dataset.screen !== screen; });
     const m = Core.modes[screen];
     if (m && m.open) m.open();

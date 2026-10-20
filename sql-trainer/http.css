@@ -1,0 +1,19 @@
+/* Режим «HTTP»: редактор запроса, ответ сервера и справочник. Доска и карточка монстра — из blitz.css. */
+.http-panel { display: grid; gap: 10px; min-width: 0; }
+.http-editor { width: 100%; min-height: 150px; resize: vertical; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--seam);
+  background: var(--ink); color: var(--parchment); font: 0.9rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; }
+.http-editor:focus { outline: none; border-color: var(--torch); }
+.http-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.http-keys { color: var(--dust); font-size: var(--step--1); }
+.http-actions .blitz-reward { margin-left: auto; }
+.http-res { margin: 0; padding: 10px 12px; max-height: 240px; overflow: auto; border-radius: var(--radius); border: 1px solid var(--seam);
+  background: var(--ink); color: var(--parchment); font: 0.82rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; text-align: left; }
+.http-res b.ok { color: var(--rune); }
+.http-res b.bad, .http-res.bad { color: var(--blood); }
+.http-empty { margin: 0; color: var(--dust); font-size: var(--step--1); }
+.http-ref { font-size: var(--step--1); color: var(--dust); border: 1px dashed var(--seam); border-radius: var(--radius); padding: 6px 10px; }
+.http-ref summary { cursor: pointer; color: var(--parchment); }
+.http-ref ul { margin: 6px 0; padding-left: 18px; display: grid; gap: 3px; }
+.http-ref p { margin: 6px 0; }
+.http-ref code { color: var(--torch); word-break: break-word; }
+.scroll-view .http-res { background: color-mix(in srgb, #000 12%, transparent); color: inherit; border-color: color-mix(in srgb, #000 25%, transparent); }

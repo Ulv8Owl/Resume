@@ -1,4 +1,4 @@
-// Башня Академии — меню выбора режима. Комнаты на картинке Avatars/Town.jpeg кликабельны.
+// Башня Академии — меню выбора режима. Комнаты на картинке Avatars/Town_Upd.jpeg кликабельны.
 // Координаты областей — в процентах от размеров картинки (768 × 1376).
 (function () {
   'use strict';
@@ -6,7 +6,7 @@
   const Core = window.Core;
   const P = window.Progression;
   const esc = Core.esc;
-  const IMAGE = 'Avatars/Town.jpeg';
+  const IMAGE = 'Avatars/Town_Upd.jpeg';
 
   // compact — у узких областей всегда короткая подпись (иначе на телефоне она не помещается)
   const SPOTS = [
@@ -19,8 +19,9 @@
     { mode: 'design',   room: 'Совет магов',       short: 'Тест-дизайн', x: 25,   y: 40,   w: 50,   h: 14.8 },
     { mode: 'theory',   room: 'Библиотека',        short: 'Библиотека',      x: 25,   y: 55.6, w: 50,   h: 14.2 },
     { mode: 'jmeter',   room: 'Мастерская голема', short: 'JMeter',      x: 25,   y: 71,   w: 50,   h: 12.8 },
-    { mode: 'sql',      room: 'Дверь подземелья, левая створка',  short: 'SQL',  x: 30, y: 84.4, w: 20, h: 12.8, compact: true },
-    { mode: 'blitz',    room: 'Дверь подземелья, правая створка', short: 'Блиц', x: 50, y: 84.4, w: 20, h: 12.8, compact: true },
+    { mode: 'sql',      room: 'Подземелье, левая дверь',          short: 'SQL',  x: 20, y: 85.5, w: 16, h: 12, compact: true },
+    { mode: 'blitz',    room: 'Подземелье, средняя дверь',        short: 'Блиц', x: 41, y: 85.5, w: 18, h: 12, compact: true },
+    { mode: 'http',     room: 'Подземелье, правая дверь',         short: 'HTTP', x: 64, y: 85.5, w: 16, h: 12, compact: true },
   ];
 
   function progressText(m) {

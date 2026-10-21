@@ -651,6 +651,7 @@
     try {
       const SQL = await window.initSqlJs();
       judge = window.Judge.create(SQL, D);
+      window.Dungeon.judge = judge; // судья нужен и Осаде (SQL-бой)
       const db = new SQL.Database();
       db.run(D.schemaSql);
       Spell.init($('pentagram'), new SQL.Database(db.export()));

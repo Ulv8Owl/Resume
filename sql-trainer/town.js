@@ -1,4 +1,4 @@
-// Башня Академии — меню выбора режима. Комнаты на картинке Avatars/Town_Upd.jpeg кликабельны.
+// Башня Академии — меню выбора режима. Комнаты на картинке Avatars/Town-piece.jpeg (во время Осады — Town-battle.jpeg) кликабельны.
 // Координаты областей — в процентах от размеров картинки (768 × 1376).
 (function () {
   'use strict';
@@ -6,7 +6,8 @@
   const Core = window.Core;
   const P = window.Progression;
   const esc = Core.esc;
-  const IMAGE = 'Avatars/Town_Upd.jpeg';
+  const IMAGE = 'Avatars/Town-piece.jpeg';
+  const SIEGE_IMAGE = 'Avatars/Town-battle.jpeg'; // во время Осады: башня в огне, открыт только зал шара
 
   // compact — у узких областей всегда короткая подпись (иначе на телефоне она не помещается)
   const SPOTS = [
@@ -28,17 +29,21 @@
   function progressText(m) {
     const api = Core.modes[m.id] || {};
     const pr = api.progressOf ? api.progressOf(Core.state) : { done: 0, available: 0 };
+    if (m.id === 'siege') return `${pr.done} побед`;
     if (m.id === 'notes') return `${pr.done} ${pr.done % 10 === 1 && pr.done % 100 !== 11 ? 'слово' : [2, 3, 4].includes(pr.done % 10) && ![12, 13, 14].includes(pr.done % 100) ? 'слова' : 'слов'}`;
     return m.id === 'jobs' ? `${pr.done} действий` : `${pr.done}/${pr.available}`;
   }
 
+  const SIEGE_SPOTS = [{ mode: 'siege', room: 'Зал шара', short: 'Осада', x: 25, y: 23, w: 50, h: 16 }];
+
   function render() {
     const box = document.getElementById('town');
     if (!box) return;
+    const siege = !!(window.Siege && window.Siege.active());
     box.innerHTML = `
       <div class="town-map">
-        <img class="town-img" src="${IMAGE}" alt="Башня Академии: в каждой комнате — свой режим" width="768" height="1376">
-        ${SPOTS.map((s) => {
+        <img class="town-img" src="${siege ? SIEGE_IMAGE : IMAGE}" alt="Башня Академии: в каждой комнате — свой режим" width="768" height="1376">
+        ${(siege ? SIEGE_SPOTS : SPOTS).map((s) => {
           const m = P.mode(s.mode);
           const api = Core.modes[s.mode];
           if (!m || !api) return '';

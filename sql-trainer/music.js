@@ -23,7 +23,7 @@
 
   function play(name) {
     audio.src = BASE + name + '.mp3';
-    audio.loop = name === 'Battle';
+    audio.loop = name === 'Battle' || name === 'Battle2';
     audio.play().catch(() => { /* ждём нажатия */ });
   }
   function nextTown() {
@@ -36,10 +36,10 @@
   function sync() {
     if (!unlocked) return;
     if (!enabled || (Core.screen === 'notes' && !inNotes)) { audio.pause(); return; }
-    const want = Core.BATTLE.includes(Core.screen) ? 'battle' : 'town';
+    const want = window.Siege && window.Siege.active() ? 'siege' : Core.BATTLE.includes(Core.screen) ? 'battle' : 'town';
     if (want !== mode) {
       mode = want;
-      if (want === 'battle') play('Battle'); else play(TOWN[townIndex]);
+      if (want === 'siege') play('Battle2'); else if (want === 'battle') play('Battle'); else play(TOWN[townIndex]);
     } else if (audio.paused) audio.play().catch(() => {});
   }
 

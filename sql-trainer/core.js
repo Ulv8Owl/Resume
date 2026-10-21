@@ -108,7 +108,7 @@
     syncNote: '',
     modes: {},
     screen: 'home',
-    BATTLE: ['sql', 'blitz', 'http'], // экраны боя: без шапки, с боевой музыкой и без отдыха
+    BATTLE: ['sql', 'blitz', 'http', 'siege'], // экраны боя: без шапки, с боевой музыкой и без отдыха
     P,
     esc,
   };
@@ -464,6 +464,7 @@
   // ---------- экраны ----------
 
   Core.go = function go(screen) {
+    if (window.Siege && window.Siege.blocks(screen)) screen = 'siege'; // во время Осады открыт только зал шара
     const prev = Core.modes[Core.screen];
     if (prev && prev.close && Core.screen !== screen) prev.close(); // режим может подвести итоги при уходе (Конспект)
     Core.screen = screen;

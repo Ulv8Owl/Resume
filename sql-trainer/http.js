@@ -49,6 +49,8 @@
     return `<pre class="http-res"><b class="${cls}">HTTP/1.1 ${res.status} ${esc(res.statusText)}</b>${head ? '\n' + esc(head) : ''}${res.body ? '\n\n' + esc(res.body) : ''}</pre>`;
   }
 
+  window.HttpView = responseHtml; // тем же видом ответ сервера показывает Осада
+
   function arenaHtml() {
     const r = room();
     const f = F();

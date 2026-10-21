@@ -1,0 +1,70 @@
+/* Режим «Осада»: кнопка-катапульта на главном экране, зал шара с боями, макеты интерфейсов в заданиях. */
+.home .home-hero { grid-template-columns: auto minmax(0, 1fr) auto; }
+.siege-launch { display: grid; justify-items: center; gap: 6px; }
+.siege-btn { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 22px; line-height: 0; transition: transform 0.15s, filter 0.15s; }
+.siege-btn img { width: 130px; height: 130px; border-radius: 22px; object-fit: cover; }
+.siege-btn:hover { transform: scale(1.04); filter: brightness(1.1); }
+.siege-btn.on { animation: siege-pulse 1.6s ease-in-out infinite; }
+@keyframes siege-pulse { 50% { filter: drop-shadow(0 0 14px #ff5a1f); } }
+.siege-red, .siege-timer { color: #ff4b3a; font-weight: 700; font-variant-numeric: tabular-nums; }
+.siege-timer { font-size: 1.15rem; letter-spacing: 0.04em; text-shadow: 0 0 10px color-mix(in srgb, #ff4b3a 60%, transparent); }
+.siege-timer[hidden] { display: none; }
+@media (max-width: 720px) {
+  .home .home-hero { grid-template-columns: auto minmax(0, 1fr); }
+  .siege-launch { grid-column: 1 / -1; grid-auto-flow: column; align-items: center; justify-content: center; }
+  .siege-btn img { width: 72px; height: 72px; border-radius: 14px; }
+}
+
+.siege-start { display: grid; gap: 10px; justify-items: center; }
+.siege-start p { margin: 0; }
+.siege-modal-icon { width: 120px; height: 120px; border-radius: 18px; object-fit: cover; }
+.siege-dur { display: grid; gap: 6px; justify-items: center; }
+.siege-dur select { padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--seam); background: var(--ink); color: var(--parchment); font: inherit; }
+
+.screen[data-screen="siege"] { display: grid; gap: 12px; align-content: start; }
+.siege-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.siege-head .sim-title { display: flex; align-items: center; gap: 10px; margin: 0; }
+.siege-head-icon { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; }
+.siege-clock { margin-left: auto; font-size: 1.2rem; }
+.siege-lead { margin: 0; color: var(--dust); }
+.siege-hub { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.siege-card { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px; text-align: left;
+  border-radius: var(--radius); border: 1px solid var(--seam); background: var(--slab); color: var(--parchment); font: inherit; cursor: pointer; }
+.siege-card:hover { border-color: #ff7a2f; box-shadow: 0 0 0 1px #ff7a2f; }
+.siege-card img { width: 96px; height: 96px; border-radius: 14px; object-fit: cover; }
+.siege-card-text { display: grid; gap: 4px; min-width: 0; }
+.siege-card-text small { color: var(--torch); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.7rem; }
+.siege-card-text span { color: var(--dust); font-size: var(--step--1); }
+.siege-card-text em { font-style: normal; font-size: var(--step--1); }
+.siege-enemy { width: 120px; aspect-ratio: 1; border-radius: 14px; object-fit: cover; grid-row: span 3; border: 2px solid #ff7a2f; }
+.siege-board .belt { grid-column: 1 / -1; }
+.siege-task { min-width: 0; }
+.siege-check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.siege-check input { margin-top: 3px; accent-color: var(--torch); }
+.siege-table { max-height: 260px; overflow: auto; border: 1px solid var(--seam); border-radius: var(--radius); }
+.siege-table table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+.siege-table th, .siege-table td { padding: 4px 8px; border-bottom: 1px solid var(--seam); text-align: left; white-space: nowrap; }
+.siege-table th { position: sticky; top: 0; background: var(--slab-2); }
+
+/* макет интерфейса в заданиях на тест-дизайн и UX: «светлый» сайт, чтобы он выглядел как настоящий */
+.siege-mock { background: #f6f7fb; color: #1d2433; border-radius: 12px; padding: 16px; font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; border: 1px solid #d8dce6; }
+.siege-mock * { box-sizing: border-box; }
+.siege-mock .mock-card { background: #fff; border: 1px solid #e1e4ec; border-radius: 10px; padding: 16px; max-width: 420px; margin: 0 auto; display: grid; gap: 10px; }
+.siege-mock .mock-title { font-size: 18px; font-weight: 700; margin: 0; }
+.siege-mock .mock-field { display: grid; gap: 4px; }
+.siege-mock .mock-label { font-size: 13px; color: #4a5368; }
+.siege-mock .mock-input, .siege-mock input, .siege-mock select { width: 100%; padding: 8px 10px; border: 1px solid #c9cfdb; border-radius: 6px; background: #fff; color: #1d2433; font: inherit; }
+.siege-mock .mock-btn, .siege-mock button { padding: 9px 14px; border-radius: 6px; border: 0; background: #3b6cf6; color: #fff; font: inherit; font-weight: 600; cursor: default; }
+.siege-mock button:disabled, .siege-mock .mock-btn[disabled] { background: #b7c3e6; }
+.siege-mock .mock-btn-secondary { background: #e7eaf2; color: #1d2433; }
+.siege-mock .mock-error { color: #d93025; font-size: 13px; }
+.siege-mock .mock-hint { color: #7a8296; font-size: 12px; }
+.siege-mock .mock-link { color: #3b6cf6; text-decoration: underline; }
+.siege-mock .mock-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.siege-mock .mock-price { font-weight: 700; }
+.siege-mock ul { margin: 0; padding-left: 18px; }
+/* у картинок кнопки и иконок белые поля по краям — срезаем их, оставляя скруглённую плитку */
+.siege-btn img, .siege-modal-icon, .siege-head-icon, .siege-card img, .siege-enemy { clip-path: inset(5.5% round 16%); border-radius: 0; border: 0; }
+.siege-btn { border-radius: 0; }
+.siege-btn img { width: 150px; height: 150px; }
+@media (max-width: 720px) { .siege-btn img { width: 84px; height: 84px; } }

@@ -3078,8 +3078,272 @@
     },
   };
 
+  /* ---------- 21. Избранное: «кнопка не работает» — ошибка в Console ---------- */
+  SCEN.favorites = {
+    origin: 'https://potion-shop.app', start: '/product/23', panel: 'elements',
+    files: {
+      'js/favorites.js': L([
+        '// favorites.js — кнопка «В избранное» на карточке товара',
+        "import { api } from './api.js';",
+        '',
+        "const btn = document.querySelector('#fav-btn');",
+        '',
+        "btn.addEventListener('click', toggleFavorite);",
+        '',
+        'async function toggleFavorite() {',
+        '  const productId = Number(btn.dataset.id);',
+        "  await api.post('/api/favorites', { productId });",
+        "  track('favorite_add', { productId });",
+        '  // обновляем счётчик в шапке',
+        "  const counter = document.querySelector('#fav-counter');",
+        '  counter.textContent = Number(counter.textContent) + 1;',
+        "  btn.textContent = '♥ В избранном';",
+        "  btn.classList.add('active');",
+        '}',
+      ]),
+    },
+    pages: {
+      '/product/23': {
+        title: 'Зелье ночного зрения — Лавка зелий',
+        res: ['css/app.css', 'js/vendor.js', 'js/favorites.js', 'img/night-vision.png'],
+        body: () => [
+          h('header', { class: 'top' }, [h('span', { class: 'logo' }, '🧪 Лавка зелий'), h('span', { class: 'badge' }, ['♥ Избранное: ', h('b', { id: 'fav-count' }, '2')])]),
+          h('main', { class: 'wrap' }, [h('div', { class: 'card hero' }, [
+            h('img', { src: '/img/night-vision.png', alt: 'Зелье ночного зрения', width: '64', height: '64' }, null, { emoji: '🌙' }),
+            h('h1', {}, 'Зелье ночного зрения'),
+            h('p', { class: 'price' }, '720 ₽'),
+            h('button', { class: 'btn ghost', id: 'fav-btn', 'data-id': '23' }, '♡ В избранное', { act: 'fav', ev: [{ type: 'click', fn: 'toggleFavorite', src: 'favorites.js:6' }] }),
+          ])]),
+        ],
+        load: (S) => { S.log('info', 'Лавка зелий build 3.2.0', 'vendor.js:14'); },
+      },
+    },
+    server: { 'POST /api/favorites': (q) => ({ status: 201, body: { productId: q.body && q.body.productId, favorites: 3 } }) },
+    acts: {
+      fav: (S) => S.api({
+        method: 'POST', path: '/api/favorites', body: { productId: 23 }, tag: 'fav', init: { src: 'favorites.js:10', stack: [['toggleFavorite', 'favorites.js:10'], ['HTMLButtonElement.toggleFavorite', 'favorites.js:6']] },
+        done: () => {
+          // Запрос прошёл, а код упал на обновлении счётчика: кнопка «не реагирует».
+          S.log('error', "Uncaught (in promise) TypeError: Cannot read properties of null (reading 'textContent')\n    at toggleFavorite (favorites.js:14:40)", 'favorites.js:14');
+          S.act('fav-click');
+        },
+      }),
+    },
+  };
+
+  /* ---------- 22. Запись на турнир: 422, Response и Payload ---------- */
+  SCEN.tournament = {
+    origin: 'https://arena.guild.app', start: '/signup', panel: 'elements',
+    headers: () => ({ authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOjd9.x8Kq' }),
+    files: {},
+    pages: {
+      '/signup': {
+        title: 'Запись на турнир — Арена Гильдии',
+        res: ['css/app.css', 'js/vendor.js', 'js/signup.js'],
+        body: () => [
+          h('header', { class: 'top' }, [h('span', { class: 'logo' }, '🏟️ Арена Гильдии')]),
+          h('main', { class: 'wrap' }, [h('form', { class: 'card form', id: 'signup-form' }, [
+            h('h1', {}, 'Осенний кубок: запись'),
+            field('Имя героя', { id: 't-name', name: 'heroName', value: 'Ивар' }),
+            field('Дата рождения', { id: 't-birth', name: 'birthDate', placeholder: 'ДД.ММ.ГГГГ', value: '21.10.1998' }),
+            field('Email', { id: 't-email', type: 'email', name: 'email', value: 'ivar@guild.app' }),
+            h('button', { class: 'btn', type: 'submit' }, 'Записаться', { k: 'signup', act: 'signup' }),
+            h('p', { class: 'alert', id: 't-msg', hidden: '' }, ''),
+          ])]),
+        ],
+      },
+    },
+    server: {
+      'POST /api/tournaments/:id/registrations': (q) => (/^\d{4}-\d{2}-\d{2}$/.test(String(q.body.birthDate || '').trim())
+        ? { status: 201, body: { registrationId: 'reg_3307', tournament: q.params.id, status: 'confirmed' } }
+        : { status: 422, time: 140, body: { error: 'VALIDATION_ERROR', message: 'Request validation failed', fields: [{ field: 'birthDate', code: 'INVALID_FORMAT', message: 'Ожидается дата в формате YYYY-MM-DD', rejected: q.body.birthDate }] } }),
+    },
+    acts: {
+      signup: (S) => {
+        const body = { heroName: S.val('t-name'), birthDate: S.val('t-birth'), email: S.val('t-email'), tournament: 'autumn-cup' };
+        S.api({
+          method: 'POST', path: '/api/tournaments/autumn-cup/registrations', body, tag: 'signup',
+          init: { src: 'signup.js:27', stack: [['submitSignup', 'signup.js:27'], ['HTMLFormElement.onSubmit', 'signup.js:40']] },
+          done: (r) => {
+            S.attr('t-msg', 'hidden', null);
+            if (r.ok) { S.attr('t-msg', 'class', 'alert ok'); S.setText('t-msg', 'Вы записаны на турнир ✓'); S.act('signup-ok'); }
+            else { S.attr('t-msg', 'class', 'alert'); S.setText('t-msg', 'Что-то пошло не так. Попробуйте позже.'); S.act('signup-failed', { status: r.status }); }
+          },
+        });
+      },
+    },
+  };
+
+  /* ---------- 23. Выход из аккаунта: localStorage и HttpOnly-cookie ---------- */
+  const OLD_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOjcsImlhdCI6MTc5MTEwMDAwMH0.a1Old';
+  const NEW_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOjcsImlhdCI6MTc5MTEwMzYwMH0.R2new';
+  const cabinetView = () => [h('div', { class: 'card' }, [
+    h('h1', {}, 'Личный кабинет'),
+    h('p', { class: 'muted' }, 'Ивар · торговец · 1 250 🪙'),
+    h('button', { class: 'btn ghost', id: 'logout' }, 'Выйти', { act: 'logout' }),
+  ])];
+  const signedOutView = () => [h('div', { class: 'card form' }, [
+    h('div', { class: 'alert ok' }, 'Вы вышли из аккаунта'),
+    h('h1', {}, 'Вход'),
+    field('Email', { id: 'l-email', type: 'email', value: '' }),
+    h('button', { class: 'btn' }, 'Войти'),
+  ])];
+  // Экран входа при монтировании пытается «тихо» продлить сессию по refresh-cookie.
+  function silentRefresh(S) {
+    S.api({
+      method: 'POST', path: '/api/auth/refresh', tag: 'refresh', init: { src: 'auth.js:31', stack: [['silentRefresh', 'auth.js:31'], ['onLoginScreenMount', 'auth.js:12']] },
+      done: (r) => {
+        if (r.ok) { S.ls.set('token', r.body.access_token); S.ls.set('user', '{"id":7,"name":"Ивар"}'); S.setKids('main', cabinetView()); S.act('auto-login'); }
+        else S.act('stay-out');
+      },
+    });
+  }
+  SCEN.logout = {
+    origin: 'https://market.guild.app', start: '/', panel: 'network',
+    local: { token: OLD_TOKEN, user: '{"id":7,"name":"Ивар"}', theme: 'dark' },
+    cookies: [
+      { name: 'refresh_token', value: 'rt_8f31c0a9e2d74b1f', domain: 'market.guild.app', expires: '2026-11-20T09:40:12.000Z', httpOnly: true, secure: true, sameSite: 'Strict', priority: 'High' },
+      { name: '_ga', value: 'GA1.1.551203611.1791100000', domain: '.guild.app', expires: '2028-11-15T09:40:12.000Z' },
+      { name: 'lang', value: 'ru', domain: 'market.guild.app' },
+    ],
+    headers: (S) => (S.ls.has('token') ? { authorization: 'Bearer ' + S.ls.get('token') } : {}),
+    files: {},
+    pages: {
+      '/': {
+        title: 'Рынок Гильдии — кабинет',
+        res: ['css/app.css', 'js/vendor.js', 'js/auth.js', 'js/cabinet.js'],
+        body: (S) => [
+          h('header', { class: 'top' }, [h('span', { class: 'logo' }, '⚖️ Рынок Гильдии')]),
+          h('main', { class: 'wrap' }, S.ls.has('token') ? cabinetView() : signedOutView(), { k: 'main' }),
+        ],
+        load: (S) => {
+          if (S.ls.has('token')) S.api({ method: 'GET', path: '/api/me', tag: 'me', init: 'cabinet.js:9' });
+          else silentRefresh(S);
+        },
+      },
+    },
+    server: {
+      'GET /api/me': () => ({ status: 200, body: { id: 7, name: 'Ивар', role: 'merchant', balance: 1250 } }),
+      // Баг бэкенда: logout не отзывает refresh-токен и не стирает cookie.
+      'POST /api/logout': () => ({ status: 204, body: '' }),
+      'POST /api/auth/refresh': (q) => (/refresh_token=/.test(q.headers.cookie || '')
+        ? { status: 200, body: { access_token: NEW_TOKEN, token_type: 'Bearer', expires_in: 900 } }
+        : { status: 401, body: { error: 'NO_REFRESH_TOKEN', message: 'Refresh token is missing' } }),
+    },
+    acts: {
+      logout: (S) => {
+        if (S.app.busy) return;
+        S.app.busy = true;
+        S.api({
+          method: 'POST', path: '/api/logout', tag: 'logout', init: { src: 'auth.js:48', stack: [['logout', 'auth.js:48'], ['HTMLButtonElement.onclick', 'cabinet.js:22']] },
+          done: () => {
+            S.ls.delete('token');
+            S.ls.delete('user');
+            S.setKids('main', signedOutView());
+            S.app.busy = false;
+            S.act('logout');
+            silentRefresh(S);
+          },
+        });
+      },
+    },
+  };
+
+  /* ---------- 24. Мои заказы: пустое состояние вместо загрузки на Slow 3G ---------- */
+  SCEN.history = {
+    origin: 'https://potion-shop.app', start: '/orders', panel: 'network',
+    headers: () => ({ authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOjQ0fQ.pQ2' }),
+    files: {},
+    pages: {
+      '/orders': {
+        title: 'Мои заказы — Лавка зелий',
+        res: ['css/app.css', 'js/vendor.js', 'js/orders.js'],
+        body: () => [
+          h('header', { class: 'top' }, [h('span', { class: 'logo' }, '🧪 Лавка зелий'), h('span', { class: 'badge' }, 'Ивар')]),
+          h('main', { class: 'wrap' }, [
+            h('h1', {}, 'Мои заказы'),
+            // Баг фронта: до ответа сервера рисуется пустой список, индикатора загрузки нет.
+            h('div', { class: 'card form', id: 'orders-list' }, [h('p', { class: 'muted', id: 'empty' }, '🙁 У вас пока нет заказов'), h('button', { class: 'btn ghost' }, 'Перейти в каталог')]),
+          ]),
+        ],
+        load: (S) => {
+          S.api({
+            method: 'GET', path: '/api/orders/history?page=1', tag: 'history',
+            init: { src: 'orders.js:18', stack: [['loadOrders', 'orders.js:18'], ['mountOrders', 'orders.js:7']] },
+            done: (r) => {
+              if (!r.ok) return;
+              S.setKids('orders-list', r.body.items.map((o) => h('div', { class: 'row' }, [h('span', {}, `№${o.id} · ${o.date}`), h('span', { class: 'badge' }, o.status), h('b', {}, o.total)])));
+              S.act(r.req.time >= 1000 ? 'slow-load' : 'fast-load', { time: Math.round(r.req.time) });
+            },
+          });
+        },
+      },
+    },
+    server: {
+      'GET /api/orders/history': () => ({ status: 200, time: 120, body: { total: 3, items: [
+        { id: 7731, date: '2 октября', status: 'доставлен', total: '1 490 ₽' },
+        { id: 7518, date: '14 сентября', status: 'доставлен', total: '2 380 ₽' },
+        { id: 7302, date: '29 августа', status: 'отменён', total: '650 ₽' },
+      ] } }),
+    },
+    acts: {},
+  };
+
+  /* ---------- 25. Отзыв без сети: Offline и Replay XHR ---------- */
+  SCEN.review = {
+    origin: 'https://potion-shop.app', start: '/reviews/new', panel: 'network',
+    headers: () => ({ authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOjQ0fQ.pQ2' }),
+    files: {},
+    pages: {
+      '/reviews/new': {
+        title: 'Новый отзыв — Лавка зелий',
+        res: ['css/app.css', 'js/vendor.js', 'js/review.js'],
+        body: () => [
+          h('header', { class: 'top' }, [h('span', { class: 'logo' }, '🧪 Лавка зелий')]),
+          h('main', { class: 'wrap' }, [h('form', { class: 'card form', id: 'review-form' }, [
+            h('h1', {}, 'Отзыв: Эликсир силы'),
+            h('label', { for: 'rev-rating' }, ['Оценка', h('select', { id: 'rev-rating', value: '5' }, ['5', '4', '3', '2', '1'].map((v) => h('option', { value: v }, '★'.repeat(+v))))]),
+            field('Отзыв', { id: 'rev-text', placeholder: 'Пара слов о зелье', value: '' }),
+            h('button', { class: 'btn', id: 'rev-send' }, 'Отправить отзыв', { act: 'send' }),
+            h('p', { class: 'muted', id: 'rev-msg' }, ''),
+          ])]),
+        ],
+      },
+    },
+    server: { 'POST /api/reviews': (q) => ({ status: 201, body: { id: 'rv_9120', productId: 17, rating: q.body.rating, status: 'published' } }) },
+    acts: {
+      send: (S) => {
+        const text = S.val('rev-text').trim();
+        if (!text) { S.setText('rev-msg', 'Напиши хотя бы пару слов'); return; }
+        if (S.app.sending) return;
+        S.app.sending = true;
+        S.setText('rev-send', 'Отправка…');
+        S.attr('rev-send', 'disabled', '');
+        S.setText('rev-msg', '');
+        S.api({
+          method: 'POST', path: '/api/reviews', body: { productId: 17, rating: Number(S.val('rev-rating')) || 5, text }, tag: 'review',
+          init: { src: 'review.js:21', stack: [['sendReview', 'review.js:21'], ['HTMLButtonElement.onclick', 'review.js:34']] },
+          onReplay: (S2, res) => { if (res.ok) S2.setText('rev-msg', 'Отзыв опубликован (повтор запроса) ✓'); },
+          done: (r) => {
+            if (r.ok) {
+              S.app.sending = false;
+              S.setText('rev-send', 'Отправить отзыв');
+              S.attr('rev-send', 'disabled', null);
+              S.setText('rev-msg', 'Спасибо! Отзыв опубликован ✓');
+              S.act('sent');
+              return;
+            }
+            // Баг фронта: сетевую ошибку никто не ловит — кнопка навсегда остаётся в «Отправка…».
+            S.log('error', 'Uncaught (in promise) TypeError: Failed to fetch\n    at sendReview (review.js:21:21)', 'review.js:21');
+            S.act('send-failed', { failed: r.failed });
+          },
+        });
+      },
+    },
+  };
+
   /* ======================= Уровни ======================= */
-  const has = (c, type, f) => c.log.some((e) => e.type === type && (!f || f(e)));
+  const has =(c, type, f) => c.log.some((e) => e.type === type && (!f || f(e)));
   const app = (c, name, f) => has(c, 'app', (e) => e.name === name && (!f || f(e)));
   // Сейчас в Network выбран запрос с меткой tag и открыта вкладка tab.
   const viewing = (c, tag, tab) => {
@@ -3087,7 +3351,7 @@
     return !!r && r.tag === tag && c.state.netTab === tab && c.state.panel === 'network';
   };
   const declOf = (c, sel, p) => { const r = c.state.css.find((x) => x.sel === sel); return r && r.decls.find((d) => d.p === p); };
-  const GOLD = [80, 90, 100, 105, 115, 125, 135, 145, 150, 160, 170, 180, 185, 195, 205, 215, 225, 230, 240, 250];
+  const GOLD = [80, 90, 100, 105, 115, 125, 135, 145, 150, 160, 170, 180, 185, 195, 205, 215, 225, 230, 240, 250, 255, 260, 270, 280, 290];
   const G = (i) => GOLD[i - 1];
 
   const LEVELS = [
@@ -3788,6 +4052,203 @@
         'Начни с воспроизведения и Network: сколько запросов уходит на один клик? Initiator покажет, какой код отправил запрос.',
         'Filter: <code>orders</code>. Выбери первый запрос → Initiator, затем второй (вкладка останется той же). Меню ⋮ — Copy as cURL и Replay XHR.',
         'Подтвердить → Network: orders → Initiator у обоих (checkout.js:20 и legacy-checkout.js:12) → ⋮ Copy as cURL → ⋮ Replay XHR (201, новый id) → третий вариант.',
+      ],
+    },
+    {
+      id: 'dt-21', setup: 'favorites', title: 'Кнопка не работает: ошибка в Console',
+      giver: { name: 'Травница Хильда', sprite: '🌿' }, gold: G(21),
+      outro: '«Кнопка не работает» — сначала Console и Network: упал ли код, ушёл ли запрос и что ответил сервер.',
+      steps: [
+        { id: 'console', text: 'Жалоба: «Кнопка <b>В избранное</b> не работает». Нажми её на странице и открой вкладку <b>Console</b>.',
+          check: (c) => app(c, 'fav-click') && c.state.panel === 'console',
+          success: 'На странице ничего не изменилось, зато в Console — Uncaught TypeError: Cannot read properties of null (reading \'textContent\').' },
+        { id: 'src', text: 'Кликни по ссылке на источник справа в строке ошибки, чтобы открыть код в Sources.',
+          check: (c) => has(c, 'src-open', (e) => e.file === 'favorites.js'),
+          success: 'Строка 14: <code>counter.textContent</code>, а counter ищется строкой выше по селектору <code>#fav-counter</code>.' },
+        { id: 'null', text: 'Проверь гипотезу в Console: выполни <code>document.querySelector(\'#fav-counter\')</code>.',
+          check: (c) => has(c, 'console-eval', (e) => e.ok && e.raw === null && /fav-counter/.test(e.code)),
+          success: 'null — элемента с таким id на странице нет.' },
+        { id: 'id', text: 'Найди счётчик избранного в шапке (Elements или инструмент ⬚). Какой у него <b>id</b> на самом деле?',
+          answer: { kind: 'text', placeholder: 'id элемента', accept: (v) => /^#?fav-count$/i.test(v.trim()), wrong: 'Выбери в Elements элемент с цифрой 2 в шапке и посмотри атрибут id.' },
+          success: 'fav-count: при редизайне id поменяли, а селектор в favorites.js остался старым.' },
+        { id: 'net', text: 'А запрос до сервера дошёл? Выбери в <b>Network</b> запрос <code>favorites</code>.',
+          check: (c) => has(c, 'net-select', (e) => e.tag === 'fav'),
+          success: 'POST /api/favorites — 201 Created: товар в избранное добавлен, упало только обновление интерфейса.' },
+        { id: 'verdict', text: 'Что написать в баг-репорте?',
+          answer: {
+            kind: 'choice',
+            options: [
+              'Бэкенд не сохраняет избранное.',
+              'Фронтенд: после успешного POST /api/favorites (201) код падает с TypeError — селектор #fav-counter не находит счётчик (id fav-count), и кнопка не обновляется.',
+              'Кнопка заблокирована атрибутом disabled.',
+              'Не загрузился файл favorites.js.',
+            ],
+            accept: (v) => v === 1,
+            wrong: 'Сопоставь: статус запроса в Network, текст ошибки в Console и строку кода в Sources.',
+          },
+          success: 'Верно. В репорт: шаги, ошибка со стеком из Console, статус 201 из Network и строка favorites.js:14.' },
+      ],
+      hints: [
+        'Если по клику ничего не происходит, смотри Console (упал ли JS) и Network (ушёл ли запрос). Счётчик ⛔ справа вверху DevTools подсказывает, что ошибки есть.',
+        'Ссылка <code>favorites.js:14</code> — справа в строке TypeError. Строка ввода консоли — внизу, со знаком ›. Счётчик в шапке — <code>&lt;b id="…"&gt;2&lt;/b&gt;</code> внутри span.badge.',
+        'В избранное → Console → клик по <code>favorites.js:14</code> → Console: <code>document.querySelector(\'#fav-counter\')</code> → null → впиши <code>fav-count</code> → Network: favorites (201) → второй вариант.',
+      ],
+    },
+    {
+      id: 'dt-22', setup: 'tournament', title: 'Network: статус, Response и Payload',
+      giver: { name: 'Распорядитель арены Кнут', sprite: '🏟️' }, gold: G(22),
+      outro: 'Упавший запрос разбирают в три шага: статус — чья сторона, Response — что не понравилось серверу, Payload — что на самом деле отправил клиент.',
+      steps: [
+        { id: 'repro', text: 'Герои не могут записаться на турнир. Нажми <b>«Записаться»</b>.',
+          check: (c) => app(c, 'signup-failed'),
+          success: 'Страница пишет «Что-то пошло не так» — без подробностей. Разберёмся в Network.' },
+        { id: 'status', text: 'Найди в <b>Network</b> запрос записи (красная строка). Какой у него статус?',
+          answer: { kind: 'text', placeholder: 'код статуса', accept: (v) => v.trim().startsWith('422'), wrong: 'Посмотри колонку Status у запроса registrations или Status Code во вкладке Headers.' },
+          success: '422 Unprocessable Content: сервер жив и понял запрос, но данные не прошли валидацию. 4xx — сначала смотрим, что отправил клиент.' },
+        { id: 'resp', text: 'Открой <b>Response</b> (или <b>Preview</b>) этого запроса: что не понравилось серверу?',
+          check: (c) => viewing(c, 'signup', 'response') || viewing(c, 'signup', 'preview'),
+          success: 'VALIDATION_ERROR: поле birthDate, код INVALID_FORMAT — ожидается дата в формате YYYY-MM-DD.' },
+        { id: 'payload', text: 'Теперь вкладка <b>Payload</b>: в каком виде ушла дата рождения?',
+          check: (c) => viewing(c, 'signup', 'payload'),
+          success: 'birthDate: "21.10.1998" — фронт отправил дату так, как её ввёл пользователь.' },
+        { id: 'fix', text: 'Проверь гипотезу: впиши в поле дату в формате <code>1998-10-21</code> и снова нажми <b>«Записаться»</b>.',
+          check: (c) => app(c, 'signup-ok'),
+          success: '201 Created — с датой в формате API запись проходит.' },
+        { id: 'verdict', text: 'Чей это баг и что в нём главное?',
+          answer: {
+            kind: 'choice',
+            options: [
+              'Бэкенд: сервер должен принимать дату в любом формате и отвечать 200.',
+              'Фронтенд: поле подсказывает ДД.ММ.ГГГГ, но дата не конвертируется в формат API (YYYY-MM-DD); вдобавок вместо текста ошибки из ответа показывается общее «Что-то пошло не так».',
+              'Сеть: запрос не дошёл до сервера.',
+              'Пользователь ввёл неправильную дату.',
+            ],
+            accept: (v) => v === 1,
+            wrong: 'Сравни, что требует сервер в Response, и что ушло в Payload.',
+          },
+          success: 'Верно. В репорт: URL и метод, статус 422, тело ответа с полем birthDate и Payload с отправленным значением.' },
+      ],
+      hints: [
+        'Сначала воспроизведи баг, потом в Network выбери красную строку. У выбранного запроса есть вкладки Headers, Payload, Preview, Response.',
+        'Статус — колонка Status или Headers → General → Status Code. Response — сырое тело ответа, Payload — тело запроса, которое отправил браузер.',
+        'Записаться → Network: registrations → впиши 422 → Response: birthDate YYYY-MM-DD → Payload: "21.10.1998" → в поле <code>1998-10-21</code> → Записаться (201) → второй вариант.',
+      ],
+    },
+    {
+      id: 'dt-23', setup: 'logout', title: 'Cookies и Local Storage: выход из аккаунта',
+      giver: { name: 'Привратник Сигурд', sprite: '🚪' }, gold: G(23),
+      outro: 'Проверка выхода: access-токен удалён из хранилищ, refresh-cookie стёрта сервером, а повторный запрос с ней получает 401.',
+      steps: [
+        { id: 'repro', text: 'Жалоба: «Нажимаю <b>Выйти</b>, а через секунду снова в кабинете». Нажми «Выйти» и посмотри, что произойдёт.',
+          check: (c) => app(c, 'auto-login'),
+          success: 'На мгновение появилась форма входа — и снова кабинет.' },
+        { id: 'ls', text: 'Открой <b>Application → Local storage</b> и выбери строку <code>token</code>. Токен удалился при выходе?',
+          check: (c) => c.state.panel === 'application' && c.state.appSec === 'local' && c.state.appSel === 'token',
+          success: 'Токен на месте, но другой — его записали заново уже после выхода. Значит, фронт удалил его, а кто-то выдал новый.' },
+        { id: 'resp', text: 'В <b>Network</b> найди запрос, который вернул новый токен, и открой его <b>Response</b>.',
+          check: (c) => viewing(c, 'refresh', 'response') || viewing(c, 'refresh', 'preview'),
+          success: 'POST /api/auth/refresh — 200 и свежий access_token. Его отправил экран входа (Initiator: auth.js).' },
+        { id: 'cookie-name', text: 'Посмотри <b>Headers → Request Headers</b> этого запроса: по какой cookie сервер выдал новый токен? Впиши её имя.',
+          answer: { kind: 'text', placeholder: 'имя cookie', accept: (v) => /^refresh_token$/i.test(v.trim()), wrong: 'Смотри заголовок cookie в Request Headers запроса refresh.' },
+          success: 'refresh_token: браузер сам прикладывает её к запросу.' },
+        { id: 'cookies', text: 'Открой <b>Application → Cookies</b> и выбери <code>refresh_token</code>. Посмотри флаги и срок жизни.',
+          check: (c) => c.state.panel === 'application' && c.state.appSec === 'cookies' && c.state.appSel === 'refresh_token',
+          success: 'HttpOnly ✓ и Secure ✓, живёт месяц. JavaScript её не видит и стереть не может, а в ответе /api/logout нет Set-Cookie, который бы её удалил.' },
+        { id: 'check', text: 'Проверь гипотезу: удали <code>refresh_token</code> (выбери строку → ✕) и снова нажми <b>«Выйти»</b>.',
+          check: (c) => app(c, 'stay-out') && !c.state.cookies.some((k) => k.name === 'refresh_token'),
+          success: 'Без cookie refresh отвечает 401, и пользователь остаётся на экране входа. Причина подтверждена.' },
+        { id: 'verdict', text: 'Какой вывод в баг-репорте?',
+          answer: {
+            kind: 'choice',
+            options: [
+              'Фронтенд: при выходе не удаляется токен из localStorage.',
+              'Бэкенд: /api/logout не отзывает refresh-токен и не стирает HttpOnly-cookie refresh_token (нет Set-Cookie с Max-Age=0), поэтому экран входа тут же получает новый access-токен.',
+              'Браузер закэшировал страницу кабинета.',
+              'Не баг: так работает «Запомнить меня».',
+            ],
+            accept: (v) => v === 1,
+            wrong: 'Вспомни: токен из localStorage фронт удалил, а новый выдал /api/auth/refresh по cookie, которую logout не тронул.',
+          },
+          success: 'Верно. Ожидание: logout инвалидирует refresh-токен на сервере и удаляет cookie, повторный refresh — 401.' },
+      ],
+      hints: [
+        'Local storage и Cookies — в разделе Storage вкладки Application. Network показывает, какие запросы ушли после клика «Выйти».',
+        'Нужен запрос <code>refresh</code>: Response — тело ответа, Headers → Request Headers → строка cookie. Удалить cookie: выбери строку в Application → Cookies и нажми ✕ (Delete Selected).',
+        'Выйти → Application → Local storage → token → Network: refresh → Response → Headers: впиши <code>refresh_token</code> → Application → Cookies → refresh_token → ✕ → Выйти → второй вариант.',
+      ],
+    },
+    {
+      id: 'dt-24', setup: 'history', title: 'Slow 3G: баг состояния загрузки',
+      giver: { name: 'Курьер Альрик', sprite: '🐎' }, gold: G(24),
+      outro: 'Индикаторы загрузки, пустые состояния и спиннеры проверяют на Slow 3G: на быстрой сети промежуточное состояние просто не успеть увидеть.',
+      steps: [
+        { id: 'throttle', text: 'Пользователи с плохой связью пишут: «Мои заказы пропали!», а потом заказы появляются. На офисной сети не воспроизводится. Включи в Network троттлинг <b>Slow 3G</b>.',
+          check: (c) => c.state.throttle === 'slow3g',
+          success: 'Сеть замедлена, как у пользователя в дороге.' },
+        { id: 'reload', text: 'Перезагрузи страницу (⟳) и следи за списком заказов, пока идёт запрос.',
+          check: (c) => app(c, 'slow-load'),
+          success: 'Пару секунд на экране «У вас пока нет заказов», и только потом появился список.' },
+        { id: 'timing', text: 'Выбери запрос <code>history</code> и открой вкладку <b>Timing</b>: сколько длится ожидание?',
+          check: (c) => viewing(c, 'history', 'timing'),
+          success: 'Больше двух секунд. Всё это время пользователь видит ложное пустое состояние.' },
+        { id: 'cause', text: 'В чём баг?',
+          answer: {
+            kind: 'choice',
+            options: [
+              'Сервер медленно отвечает — это баг бэкенда.',
+              'Фронт не различает «загружается» и «пусто»: до ответа сервера показывает пустое состояние «У вас пока нет заказов» вместо индикатора загрузки.',
+              'Заказы удаляются и восстанавливаются на сервере.',
+              'Не баг: у пользователя просто плохая связь.',
+            ],
+            accept: (v) => v === 1,
+            wrong: 'Что видно на экране, пока запрос ещё в статусе (pending)?',
+          },
+          success: 'Верно. Ожидание: скелетон или спиннер до ответа, пустое состояние — только если сервер вернул пустой список.' },
+        { id: 'restore', text: 'Верни <b>No throttling</b> и перезагрузи страницу — не оставляй троттлинг включённым после проверки.',
+          check: (c) => { const ev = c.log.filter((e) => e.type === 'app' && /-load$/.test(e.name)); const last = ev[ev.length - 1]; return c.state.throttle === 'none' && !!last && last.name === 'fast-load'; },
+          success: 'Обычная скорость вернулась. В репорт: условия (Slow 3G), шаги и что видно до ответа сервера.' },
+      ],
+      hints: [
+        'Троттлинг — выпадающий список «No throttling» в панели инструментов Network. Он действует на запросы, пока DevTools открыты.',
+        'Выбери Slow 3G, нажми ⟳ над страницей и смотри на блок заказов, пока у запроса history статус (pending). Timing — последняя вкладка у выбранного запроса.',
+        'Slow 3G → ⟳ → «У вас пока нет заказов» на 2+ секунды → Network: history → Timing → второй вариант → No throttling → ⟳.',
+      ],
+    },
+    {
+      id: 'dt-25', setup: 'review', title: 'Offline и Replay XHR',
+      giver: { name: 'Сказительница Тора', sprite: '📝' }, gold: G(25),
+      outro: 'Проверка без сети: запрос падает с net::ERR_INTERNET_DISCONNECTED, и интерфейс должен сообщить об ошибке и дать повторить, а не зависнуть.',
+      steps: [
+        { id: 'offline', text: 'Пользователи в метро жалуются, что отзыв «отправляется вечно». Выбери в Network троттлинг <b>Offline</b>.',
+          check: (c) => c.state.throttle === 'offline',
+          success: 'Сеть выключена.' },
+        { id: 'send', text: 'Напиши пару слов в поле <b>Отзыв</b> и нажми <b>«Отправить отзыв»</b>.',
+          check: (c) => app(c, 'send-failed'),
+          success: 'Кнопка застыла в «Отправка…» и неактивна. Пользователь не узнаёт, что отзыв не ушёл.' },
+        { id: 'headers', text: 'Выбери в Network запрос <code>reviews</code> и посмотри <b>Headers</b>: какой у него статус?',
+          check: (c) => { const r = c.state.selReq(); return viewing(c, 'review', 'headers') && !!r && !!r.failed; },
+          success: '(failed) net::ERR_INTERNET_DISCONNECTED: ответа сервера нет вообще, вкладка Response пустая. В Console — Failed to fetch.' },
+        { id: 'verdict', text: 'В чём баг?',
+          answer: {
+            kind: 'choice',
+            options: [
+              'Бэкенд не принимает отзывы.',
+              'Фронт не обрабатывает сетевую ошибку: кнопка навсегда остаётся в «Отправка…», пользователю не показано сообщение и нельзя повторить отправку.',
+              'Не баг: без интернета ничего и не должно работать.',
+              'Отзыв слишком короткий.',
+            ],
+            accept: (v) => v === 1,
+            wrong: 'Без сети запрос и должен упасть. Вопрос в том, что после этого видит пользователь.',
+          },
+          success: 'Верно. Ожидание: понятное сообщение «Нет соединения», кнопка снова активна или повтор при появлении сети.' },
+        { id: 'replay', text: 'Убедись, что сервер в порядке: верни <b>No throttling</b> и повтори упавший запрос через <b>Replay XHR</b> (правый клик или ⋮).',
+          check: (c) => has(c, 'replay', (e) => e.tag === 'review' && e.status === 201),
+          success: '201 Created — отзыв принят. Значит, бэкенд работает, а баг только в обработке ошибки на фронте.' },
+      ],
+      hints: [
+        'Режим Offline — в том же списке троттлинга, что и Slow 3G. Запросы падают сразу, а страница не перезагружается, пока ты сам её не обновишь.',
+        'Упавший запрос в таблице — красная строка со статусом (failed). Меню запроса — правый клик по строке или ⋮ справа от вкладок; Replay XHR повторяет запрос с тем же телом.',
+        'Offline → текст отзыва → Отправить → Network: reviews → Headers: (failed) → второй вариант → No throttling → ⋮ → Replay XHR (201).',
       ],
     },
   ];

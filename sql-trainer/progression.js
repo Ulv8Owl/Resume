@@ -16,7 +16,7 @@
     { id: 'swagger',  name: 'API · Swagger',       share: 0.09, planned: 25,  unit: 'уровней',  tagline: 'Читать документацию и пробовать эндпоинты' },
     { id: 'postman',  name: 'API · Postman',       share: 0.10, planned: 20,  unit: 'уровней',  tagline: 'Запросы, окружения, авторизация, тесты' },
     { id: 'charles',  name: 'API · Charles Proxy', share: 0.08, planned: 25,  unit: 'уровней',  tagline: 'Перехват и подмена трафика мобильного приложения' },
-    { id: 'devtools', name: 'DevTools',            share: 0.09, planned: 20,  unit: 'уровней',  tagline: 'Console, Network, Elements, Application: ищем причину бага' },
+    { id: 'devtools', name: 'DevTools',            share: 0.09, planned: 25,  unit: 'уровней',  tagline: 'Console, Network, Elements, Application: ищем причину бага' },
     { id: 'git',      name: 'Git · GitLab CI',     share: 0.08, planned: 20,  unit: 'уровней',  tagline: 'Ветки, коммиты, merge request и пайплайны' },
     { id: 'jmeter',   name: 'Нагрузка · JMeter',   share: 0.08, planned: 20,  unit: 'уровней',  tagline: 'Тест-планы, потоки, ассерты и отчёты нагрузочного тестирования' },
     // Практика собеседования (🎓): 9 доп. режимов по 5 практических заданий.

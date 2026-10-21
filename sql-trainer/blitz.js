@@ -32,10 +32,11 @@
 
   // Вопрос j монстра r: из файла акта. Варианты перемешиваются при каждом показе.
   function question(r, j) {
-    const src = ((window.BLITZ_Q || {})[actOf(r)] || [])[(r.index % 30) * 3 + j];
+    const idx = (r.index % 30) * 3 + j;
+    const src = ((window.BLITZ_Q || {})[actOf(r)] || [])[idx];
     if (!src) return { q: 'Вопросы для этого акта не загрузились.', options: ['—', '—', '—', '—'], right: 0, hint: '', why: '' };
     const options = shuffle(src.a);
-    return { q: src.q, options, right: options.indexOf(src.a[0]), hint: src.hint, why: src.why, hidden: [], scrolls: [] };
+    return { q: src.q, options, right: options.indexOf(src.a[0]), hint: src.hint, why: src.why, hidden: [], scrolls: [], key: `${actOf(r)}:${idx}` };
   }
   const reshuffle = (q) => { const right = q.options[q.right]; q.options = shuffle(q.options); q.right = q.options.indexOf(right); };
 
@@ -167,6 +168,7 @@
       f.note = 'Верно! Удар пришёлся точно в цель.';
       f.noteCls = 'dmg';
       Core.track('theory-card', { id: 'blitz:' + q.q });
+      Core.track('blitz-right', { key: q.key }); // в Книгу заметок
       if (f.at >= 3) return victory();
     } else {
       f.mistakes++;

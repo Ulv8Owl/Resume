@@ -480,7 +480,7 @@
       return finishTurn();
     }
 
-    if (ev.exact) Spell.cast(); else Spell.fizzle();
+    if (ev.exact) { Spell.cast(); Core.track('sql-cast', { sql }); } else Spell.fizzle();
     const d = ev.display || {};
     const extra = d.changes ? `Изменено строк: ${d.changes}.` : null;
     renderResult(d.res, { verdict: verdictEl(ev), label: d.label, note: d.res ? null : extra });

@@ -3,12 +3,9 @@
 .book-count { position: absolute; right: -4px; bottom: -4px; min-width: 18px; padding: 0 4px; border-radius: 9px; background: var(--blood); color: #fff; font-size: 0.68rem; line-height: 18px; text-align: center; }
 .book-count[hidden] { display: none; }
 .modal:has(.book-wrap) { width: min(1180px, 100%); }
+.book-wrap { width: min(1100px, 100%); justify-self: center; }
 .book-wrap { display: grid; gap: 10px; }
-.book-tabs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
-.book-tabs button { padding: 6px 14px; border-radius: var(--radius); border: 1px solid var(--seam); background: var(--slab-2); color: var(--parchment); font: inherit; cursor: pointer; }
-.book-tabs button.on { border-color: var(--torch); box-shadow: 0 0 0 1px var(--torch); }
-.book-tabs small { color: var(--dust); }
-.book { position: relative; width: 100%; aspect-ratio: 1408 / 768; container-type: inline-size; }
+.book { position: relative; width: 100%; min-width: min(1100px, 86vw); aspect-ratio: 1408 / 768; container-type: inline-size; }
 .book-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; }
 .book-left, .book-right { position: absolute; top: 9%; bottom: 10%; overflow: auto; color: #3b2a17; font-family: Georgia, 'Times New Roman', serif; }
 .book-left { left: 10%; right: 52.5%; }
@@ -27,3 +24,20 @@
 .book-corner:disabled { cursor: default; }
 .book-left::-webkit-scrollbar, .book-right::-webkit-scrollbar { width: 6px; }
 .book-left::-webkit-scrollbar-thumb, .book-right::-webkit-scrollbar-thumb { background: rgba(120, 85, 40, 0.35); border-radius: 3px; }
+
+/* замер страниц при раскладке — невидимая копия левой страницы */
+.book-measure { visibility: hidden; pointer-events: none; overflow: hidden; }
+.book .book-chapter { margin: 0 0 0.15em; font-size: 1.6em; line-height: 1.15; color: #2a1c0e; font-family: Georgia, "Times New Roman", serif; text-align: left; letter-spacing: 0.02em; border-bottom: 2px solid #a07a46; padding-bottom: 0.15em; }
+.book-sub { margin: 0 0 0.8em; font-size: 0.8em; color: #8a6a43; font-style: italic; }
+.book-running { margin: 0 0 0.6em; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.1em; color: #8a6a43; border-bottom: 1px solid rgba(160, 122, 70, 0.4); }
+.book-entry { margin: 0 0 0.9em; }
+.book-entry h5 { margin: 0 0 0.25em; font-size: 1.12em; color: #2a1c0e; }
+.book-entry.fresh h5::after { content: ' • новое'; font-size: 0.7em; color: #a3341f; font-weight: 400; }
+.book-entry .book-text { font-size: 0.95em; }
+.book-entry pre { margin: 0.35em 0 0; }
+.book-toc { list-style: none; margin: 0.4em 0 0; padding: 0; display: grid; gap: 0.7em; }
+.book-toc button { width: 100%; display: flex; align-items: baseline; gap: 0.4em; padding: 0.2em 0; border: 0; background: none; color: #2a1c0e; font: inherit; font-size: 1.3em; cursor: pointer; text-align: left; }
+.book-toc button:hover span { text-decoration: underline; color: #7a3b12; }
+.book-toc button i { flex: 1; border-bottom: 2px dotted #a07a46; transform: translateY(-0.25em); }
+.book-toc small { display: block; color: #8a6a43; font-size: 0.85em; }
+.book-toc li.empty span { font-size: 1.3em; color: #a89070; }

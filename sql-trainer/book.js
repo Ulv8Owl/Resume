@@ -1,193 +1,228 @@
-// Книга заметок (📖 в шапке): всё новое, что встретилось в победах в SQL, HTTP и Блице.
-//   SQL   — приём запроса из зала (topic) с объяснением и запросом-примером;
-//   HTTP  — элементы запроса: методы, параметры, заголовки, тело, коды ответов (по эталонам пройденных монстров);
-//   Блиц  — понятия: вопрос, верный ответ и пояснение.
-// Записи не хранятся отдельно — книга собирается из прогресса. В сохранении только какие записи уже объявлены
-// (book.announced, чтобы сказать «в книгу добавлено…» при победе) и прочитаны (book.read — для счётчика на кнопке).
-// Листание — как у настоящей книги: наведи на нижний правый (левый) уголок и нажми.
+// Книга заметок (📖 в шапке): всё, что игрок сам использовал в победных запросах, с пояснениями.
+//   SQL   — каждый элемент победного запроса игрока: SELECT, *, FROM, WHERE, =, ORDER BY… (словарь — book-glossary.js);
+//           важен именно написанный запрос, а не зал: пропустил первый зал — элементы всё равно попадут в книгу;
+//   HTTP  — метод, путь, параметры, заголовки, тело и код ответа из победного запроса игрока;
+//   Блиц  — понятия: вопрос, верный ответ и пояснение (после верного ответа).
+// В сохранении — только ключи записей в порядке получения (book.sql / book.http / book.blitz) и прочитанные (book.read).
+// Разворот 1 — оглавление: раздел SQL, HTTP, Блиц → переход к странице начала раздела. Дальше страницы
+// раскладываются заново при каждом открытии (по фактической высоте текста), каждый раздел начинается с новой страницы,
+// его название — вверху. Листание — как у настоящей книги: наведи на нижний правый (левый) уголок и нажми.
 (function () {
   'use strict';
 
   const Core = window.Core;
-  const D = window.DUNGEON;
+  const G = window.BOOK_GLOSSARY;
   const esc = Core.esc;
   const $ = (id) => document.getElementById(id);
   const IMG = { base: 'Avatars/book.jpeg', right: 'Avatars/right_book.jpeg', left: 'Avatars/left_book.jpeg' };
+  const CHAPTERS = [['sql', 'SQL', 'Элементы запросов, которые ты использовал в победах'], ['http', 'HTTP', 'Методы, параметры, заголовки и коды ответов'], ['blitz', 'Блиц', 'Понятия, на которые ты ответил верно']];
 
-  // ---------- HTTP: словарь элементов запроса ----------
-  const H = [
-    ['m-GET', 'Метод GET', 'Получить данные. Не меняет состояние сервера, поэтому безопасен и идемпотентен; тела у запроса нет.', 'GET /heroes'],
-    ['m-POST', 'Метод POST', 'Создать ресурс (или выполнить действие, например вход). Не идемпотентен: два одинаковых POST создадут два ресурса. Успех — обычно 201 Created и заголовок Location.', 'POST /items\nContent-Type: application/json\n\n{"name": "Факел", "rarity": "common", "price": 15}'],
-    ['m-PUT', 'Метод PUT', 'Полностью заменить ресурс: непереданные поля сбрасываются. Идемпотентен — повтор даёт тот же результат.', 'PUT /items/5\n\n{"name": "Лук", "rarity": "rare", "price": 500, "description": null}'],
-    ['m-PATCH', 'Метод PATCH', 'Частично изменить ресурс: меняются только переданные поля, остальные остаются как были.', 'PATCH /items/5\n\n{"price": 480}'],
-    ['m-DELETE', 'Метод DELETE', 'Удалить ресурс. Успех — 204 No Content без тела; повторное удаление — 404.', 'DELETE /items/13'],
-    ['path-id', 'Параметр пути', 'Идентификатор ресурса прямо в пути: /items/{id}. Неверный формат id — 400, такого ресурса нет — 404.', 'GET /heroes/3'],
-    ['query', 'Query-параметры', 'Фильтры и настройки списка после «?»: ключ=значение, между парами «&». Порядок параметров не важен.', 'GET /heroes?class=Маг&limit=2'],
-    ['paging', 'Пагинация: limit и offset', 'limit — сколько записей на странице, offset — сколько пропустить. Вторая страница по 5: limit=5&offset=5. Общее число — в X-Total-Count.', 'GET /items?limit=5&offset=5'],
-    ['sort', 'Сортировка: sort и order', 'sort — по какому полю, order — asc (по возрастанию) или desc (по убыванию). Неизвестное поле — 400.', 'GET /items?sort=price&order=desc'],
-    ['login', 'Вход и токен', 'POST /auth/login с логином и паролем возвращает токен. Дальше токен передаётся в каждом запросе, где нужна авторизация.', 'POST /auth/login\n\n{"login": "mage", "password": "chronicles"}'],
-    ['bearer', 'Authorization: Bearer', 'Заголовок с токеном: «Bearer» + пробел + токен. Нет или неверный токен — 401, токен есть, но прав не хватает — 403.', 'Authorization: Bearer tok_7f3a9c21'],
-    ['ctype', 'Content-Type', 'Тип тела запроса. Для JSON — application/json. Сервер, который ждёт JSON, на другой тип ответит 415.', 'Content-Type: application/json'],
-    ['body', 'Тело запроса (JSON)', 'Данные для POST/PUT/PATCH: после заголовков пустая строка, затем JSON. Строки в кавычках, числа — без. Сломанный JSON — 400, неверные поля — 422.', '{"name": "Лиора", "class": "Жрец", "level": 4}'],
-    ['apikey', 'X-API-Key', 'Авторизация ключом приложения в отдельном заголовке — так часто защищают служебные эндпоинты. Нет ключа или он неверный — 401.', 'X-API-Key: key_guild_9d4e'],
-    ['custom', 'Свой заголовок (X-Realm)', 'API может требовать собственные заголовки. Обязательного нет — 400 с объяснением в теле.', 'X-Realm: north'],
-    ['lang', 'Accept-Language', 'Клиент просит язык ответа. Сервер сообщает выбранный язык заголовком Content-Language.', 'Accept-Language: en'],
-    ['v2', 'Версии API', 'Новая версия — новый префикс пути (/v2). Формат ответа может отличаться: например, список в конверте { data, total }.', 'GET /v2/heroes'],
-  ];
-  const STATUS = {
-    200: ['200 OK', 'Запрос выполнен, в теле — результат.'],
-    201: ['201 Created', 'Ресурс создан. Обычно в теле созданный объект, в заголовке Location — его адрес.'],
-    204: ['204 No Content', 'Успех без тела ответа — так обычно отвечает DELETE.'],
-    400: ['400 Bad Request', 'Запрос сформирован неверно: сломанный JSON, неверный формат параметра, нет обязательного заголовка.'],
-    401: ['401 Unauthorized', 'Не удалось установить, кто ты: нет токена, токен неверный или истёк.'],
-    403: ['403 Forbidden', 'Кто ты — известно, но прав на действие нет (например, читатель пытается удалить).'],
-    404: ['404 Not Found', 'Ресурса нет: неверный id или путь.'],
-    405: ['405 Method Not Allowed', 'Путь есть, но этот метод на нём не поддерживается.'],
-    409: ['409 Conflict', 'Конфликт с текущим состоянием: например, такое имя уже занято.'],
-    415: ['415 Unsupported Media Type', 'Сервер не принимает такой Content-Type тела.'],
-    422: ['422 Unprocessable Entity', 'JSON корректный, но значения полей не проходят проверку: в теле — какие поля и почему.'],
-  };
-
-  function httpFeatures(t) {
-    const a = t.answer || '';
-    const first = a.split('\n')[0];
-    const m = first.split(/\s+/)[0];
-    const f = ['m-' + m];
-    if (/\/\d+(\b|\/|\?|$)/.test(first.split('?')[0])) f.push('path-id');
-    if (/\?/.test(first)) f.push('query');
-    if (/[?&](limit|offset)=/.test(first)) f.push('paging');
-    if (/[?&](sort|order)=/.test(first)) f.push('sort');
-    if (/\/auth\/login/.test(first)) f.push('login');
-    if (/^authorization:\s*bearer/im.test(a)) f.push('bearer');
-    if (/^content-type:/im.test(a)) f.push('ctype');
-    if (/\n\s*\n\s*\S/.test(a)) f.push('body');
-    if (/^x-api-key:/im.test(a)) f.push('apikey');
-    if (/^x-realm:/im.test(a)) f.push('custom');
-    if (/^accept-language:/im.test(a)) f.push('lang');
-    if (/\/v2\//.test(first)) f.push('v2');
-    if (STATUS[t.status]) f.push('s' + t.status);
-    return f;
+  function B() {
+    const st = Core.state;
+    if (!st.book || !Array.isArray(st.book.sql)) st.book = { sql: [], http: [], blitz: [], read: [], announced: [], v: 2 };
+    return st.book;
   }
 
-  // ---------- все записи книги по прогрессу ----------
-  const roomsDone = (key) => ((Core.state[key] && Core.state[key].rooms) || {});
-  function entries() {
-    const out = [];
-    const sql = roomsDone('sql');
-    const seenTopic = new Set();
-    D.rooms.forEach((r) => {
-      if (!sql[r.id] || !sql[r.id].cleared || seenTopic.has(r.topic)) return;
-      seenTopic.add(r.topic);
-      out.push({ key: 'sql:' + r.topic, ch: 'SQL', title: r.topic, html: r.hints[0], example: r.solution, from: `Зал ${r.index + 1} · ${r.monster}` });
-    });
-    const http = roomsDone('http');
-    const seenF = new Set();
-    D.rooms.forEach((r) => {
-      if (!http[r.id] || !http[r.id].cleared) return;
-      const t = ((window.HTTP_TASKS || {})[Math.floor(r.index / 30)] || [])[r.index % 30];
-      if (!t) return;
-      httpFeatures(t).forEach((k) => {
-        if (seenF.has(k)) return;
-        seenF.add(k);
-        if (k[0] === 's') { const s = STATUS[k.slice(1)]; out.push({ key: 'http:' + k, ch: 'HTTP', title: 'Код ' + s[0], html: esc(s[1]), example: '', from: `Монстр ${r.index + 1}` }); return; }
-        const g = H.find((x) => x[0] === k);
-        if (g) out.push({ key: 'http:' + k, ch: 'HTTP', title: g[1], html: esc(g[2]), example: g[3], from: `Монстр ${r.index + 1}` });
-      });
-    });
-    const blitz = roomsDone('blitz');
-    D.rooms.forEach((r) => {
-      if (!blitz[r.id] || !blitz[r.id].cleared) return;
-      const act = Math.floor(r.index / 30);
-      for (let j = 0; j < 3; j++) {
-        const q = ((window.BLITZ_Q || {})[act] || [])[(r.index % 30) * 3 + j];
-        if (q) out.push({ key: `blitz:${act}:${(r.index % 30) * 3 + j}`, ch: 'Блиц', title: q.q, html: `<b>${esc(q.a[0])}.</b> ${esc(q.why || '')}`, example: '', from: `Монстр ${r.index + 1}` });
-      }
-    });
+  // ---------- что нового в запросе ----------
+  const clean = (sql) => String(sql || '').replace(/--[^\n]*/g, ' ').replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/'(?:[^']|'')*'/g, "''").toUpperCase();
+  const sqlKeys = (sql) => { const s = clean(sql); return G.sql.filter((g) => g[4].test(s)).map((g) => 'sql:' + g[0]); };
+
+  function httpKeys(text, status) {
+    const p = window.HttpEngine && window.HttpEngine.parse(text);
+    if (!p || p.error) return [];
+    const out = ['http:feature:line', 'http:method:' + p.method];
+    const path = p.url.pathname;
+    if (/^\/v2\//.test(path)) out.push('http:feature:v2');
+    if (/\/auth\/login/.test(path)) out.push('http:feature:login');
+    if (/\/\d+(\/|$)/.test(path)) out.push('http:feature:pathid');
+    const params = [...p.url.searchParams.keys()];
+    if (params.length) out.push('http:feature:query');
+    params.forEach((k) => out.push('http:param:' + k));
+    Object.keys(p.headers).forEach((h) => out.push('http:header:' + h.toLowerCase()));
+    if (p.body) out.push('http:feature:body');
+    if (status && G.http.status[status]) out.push('http:status:' + status);
     return out;
   }
 
-  function B() {
-    if (!Core.state.book) {
-      // первое знакомство с книгой: всё уже пройденное считается объявленным и прочитанным
-      const keys = entries().map((e) => e.key);
-      Core.state.book = { announced: keys.slice(), read: keys.slice() };
+  function add(chapter, keys) {
+    const b = B();
+    const fresh = keys.filter((k) => !b[chapter].includes(k));
+    if (!fresh.length) return 0;
+    b[chapter] = b[chapter].concat(fresh);
+    Core.save();
+    badge();
+    return fresh.length;
+  }
+
+  // События боёв: победный SQL-запрос, победный HTTP-запрос, верный ответ Блица
+  Core.on((type, d) => {
+    if (type === 'sql-cast') add('sql', sqlKeys(d.sql));
+    else if (type === 'http-sent') add('http', httpKeys(d.text, d.status));
+    else if (type === 'blitz-right' && d.key) add('blitz', ['blitz:' + d.key]);
+    else return;
+    setTimeout(announce, 0); // окно победы уже открыто — дописать в него, что попало в книгу
+  });
+  function announce() {
+    const b = B();
+    const all = [].concat(b.sql, b.http, b.blitz);
+    const fresh = all.filter((k) => !b.announced.includes(k));
+    const loot = document.querySelector('.modal .loot');
+    if (!fresh.length || !loot) return;
+    b.announced = b.announced.concat(fresh);
+    Core.save();
+    const names = fresh.map((k) => entry(k)).filter(Boolean).map((e) => e.title);
+    loot.insertAdjacentHTML('afterend', `<p class="act-open book-new">📖 В книгу заметок: ${names.slice(0, 5).map(esc).join(', ')}${names.length > 5 ? ` и ещё ${names.length - 5}` : ''}</p>`);
+  }
+
+  // ---------- содержимое записи по ключу ----------
+  function entry(key) {
+    const [ch, a, b] = key.split(':');
+    if (ch === 'sql') {
+      const g = G.sql.find((x) => x[0] === a);
+      return g && { key, title: g[1], html: g[2], example: g[3] };
     }
-    return Core.state.book;
+    if (ch === 'http') {
+      const h = G.http[a] && G.http[a][b];
+      if (h) return { key, title: a === 'status' ? 'Код ' + h[0] : a === 'param' ? `Параметр ${h[0]}` : a === 'method' ? `Метод ${h[0]}` : h[0], html: esc(h[1]), example: h[2] || '' };
+      if (a === 'header') return { key, title: `Заголовок ${b}`, html: 'Дополнительный заголовок запроса: «Имя: значение». Сервер читает его, если ждёт.', example: `${b}: …` };
+      if (a === 'param') return { key, title: `Параметр ${b}`, html: 'Query-параметр: настройка или фильтр запроса после «?».', example: `?${b}=…` };
+      return null;
+    }
+    if (ch === 'blitz') {
+      const q = ((window.BLITZ_Q || {})[+a] || [])[+b];
+      return q && { key, title: q.q, html: `<b>${esc(q.a[0])}.</b> ${esc(q.why || '')}`, example: '' };
+    }
+    return null;
+  }
+
+  // Прогресс до этой версии книги: берём эталоны уже пройденных залов, монстров HTTP и вопросы пройденных монстров Блица
+  function backfill() {
+    const b = B();
+    if (b.filled) return;
+    const D = window.DUNGEON;
+    const st = Core.state;
+    const done = (k, r) => st[k] && st[k].rooms && st[k].rooms[r.id] && st[k].rooms[r.id].cleared;
+    const keys = { sql: [], http: [], blitz: [] };
+    D.rooms.forEach((r) => {
+      if (done('sql', r)) keys.sql.push(...sqlKeys(r.solution));
+      const act = Math.floor(r.index / 30);
+      const t = ((window.HTTP_TASKS || {})[act] || [])[r.index % 30];
+      if (done('http', r) && t) keys.http.push(...httpKeys(t.answer, t.status));
+      if (done('blitz', r)) for (let j = 0; j < 3; j++) keys.blitz.push(`blitz:${act}:${(r.index % 30) * 3 + j}`);
+    });
+    Object.keys(keys).forEach((ch) => { b[ch] = Array.from(new Set(b[ch].concat(keys[ch]))); });
+    b.announced = Array.from(new Set(b.announced.concat(b.sql, b.http, b.blitz)));
+    b.read = Array.from(new Set(b.read.concat(b.sql, b.http, b.blitz)));
+    b.filled = true;
+    Core.save();
   }
 
   function badge() {
     const el = document.querySelector('#book-btn .book-count');
     if (!el || !Core.state) return;
-    const read = new Set(B().read);
-    const n = entries().filter((e) => !read.has(e.key)).length;
+    const b = B();
+    const n = [].concat(b.sql, b.http, b.blitz).filter((k) => !b.read.includes(k)).length;
     el.hidden = !n;
     el.textContent = n > 99 ? '99+' : n;
   }
 
-  // После победы: новые записи — строкой в окно победы и счётчиком на кнопке книги
-  Core.on((type) => {
-    if (!['sql-room', 'http-task', 'theory-card'].includes(type)) return;
-    setTimeout(() => {
-      const b = B();
-      const known = new Set(b.announced);
-      const fresh = entries().filter((e) => !known.has(e.key));
-      if (!fresh.length) return;
-      b.announced = b.announced.concat(fresh.map((e) => e.key));
-      Core.save();
-      badge();
-      const modal = document.querySelector('.modal .loot');
-      if (modal) modal.insertAdjacentHTML('afterend', `<p class="act-open book-new">📖 В книгу заметок: ${fresh.slice(0, 4).map((e) => esc(e.title)).join(', ')}${fresh.length > 4 ? ` и ещё ${fresh.length - 4}` : ''}</p>`);
-    }, 0);
-  });
+  // ---------- вёрстка страниц ----------
+  const entryHtml = (e) => `<div class="book-entry${B().read.includes(e.key) ? '' : ' fresh'}"><h5>${esc(e.title)}</h5><div class="book-text">${e.html || ''}</div>${e.example ? `<pre>${esc(e.example)}</pre>` : ''}</div>`;
 
-  // ---------- книга ----------
-  const CHAPTERS = ['SQL', 'HTTP', 'Блиц'];
-  let chapter = 'SQL';
-  let spread = 0;
-
-  function page(e, n) {
-    if (!e) return `<div class="book-page empty"><p>${n === 0 ? 'Здесь пока пусто. Побеждай — и в книге появятся заметки.' : ''}</p></div>`;
-    const read = B().read.includes(e.key);
-    return `<div class="book-page"><p class="book-from">${esc(e.ch)} · ${esc(e.from)}${read ? '' : ' · <b>новое</b>'}</p>
-      <h4>${esc(e.title)}</h4><div class="book-text">${e.html || ''}</div>${e.example ? `<pre>${esc(e.example)}</pre>` : ''}<span class="book-num">${n + 1}</span></div>`;
+  // Раскладка: страница 1 — оглавление, 2 — как пользоваться, дальше разделы. Страницы наполняются по высоте:
+  // запись, которая не влезла, переносится на следующую страницу. Раздел всегда начинается с новой страницы.
+  function layout(measure) {
+    const b = B();
+    const pages = [{ kind: 'toc' }, { kind: 'about' }];
+    const starts = {};
+    CHAPTERS.forEach(([id, name, sub]) => {
+      const list = b[id].map(entry).filter(Boolean);
+      if (!list.length) return;
+      starts[id] = pages.length;
+      let cur = `<h3 class="book-chapter">${esc(name)}</h3><p class="book-sub">${esc(sub)}</p>`;
+      let has = false;
+      list.forEach((e) => {
+        const html = entryHtml(e);
+        measure.innerHTML = `<div class="book-page">${cur}${html}<span class="book-num">0</span></div>`;
+        if (has && measure.scrollHeight > measure.clientHeight + 1) {
+          pages.push({ kind: 'page', html: cur, chapter: name });
+          cur = `<p class="book-running">${esc(name)}</p>` + html;
+        } else cur += html;
+        has = true;
+      });
+      pages.push({ kind: 'page', html: cur, chapter: name });
+    });
+    if (pages.length % 2) pages.push({ kind: 'blank' });
+    return { pages, starts };
   }
 
+  function pageHtml(p, n, starts) {
+    if (!p) return '';
+    let inner = '';
+    if (p.kind === 'toc') {
+      inner = `<h3 class="book-chapter">Книга заметок</h3><p class="book-sub">Разделы</p><ul class="book-toc">${CHAPTERS.map(([id, name]) => {
+        const count = B()[id].length;
+        return starts[id] != null
+          ? `<li><button type="button" data-goto="${starts[id]}"><span>${esc(name)}</span><i></i><b>${starts[id] + 1}</b></button><small>${count} ${count % 10 === 1 && count % 100 !== 11 ? 'запись' : [2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100) ? 'записи' : 'записей'}</small></li>`
+          : `<li class="empty"><span>${esc(name)}</span><small>пока пусто — побеждай в режиме ${esc(name)}</small></li>`;
+      }).join('')}</ul>`;
+    } else if (p.kind === 'about') {
+      inner = `<h3 class="book-chapter">Как вести записи</h3><div class="book-text"><p>Сюда сама собой записывается всё, что ты использовал в победах: каждый элемент SQL-запроса, части HTTP-запроса и понятия из Блица.</p>
+        <p>Важно, как ты написал запрос, а не какой зал прошёл: другой запрос — другие записи.</p><p>Новые записи подсвечены. Листай за нижние уголки страниц, к разделу — через оглавление.</p></div>`;
+    } else if (p.kind === 'page') inner = p.html;
+    return `<div class="book-page">${inner}<span class="book-num">${n + 1}</span></div>`;
+  }
+
+  let spread = 0;
+  let pending = null; // переход из оглавления
+
   function open() {
-    const all = entries().filter((e) => e.ch === chapter);
-    const pages = Math.max(1, Math.ceil(all.length / 2));
-    spread = Math.min(spread, pages - 1);
-    const L = all[spread * 2];
-    const R = all[spread * 2 + 1];
-    // открытые страницы — прочитаны
-    const b = B();
-    [L, R].forEach((e) => { if (e && !b.read.includes(e.key)) b.read.push(e.key); });
-    Core.save();
-    badge();
-    const counts = Object.fromEntries(CHAPTERS.map((c) => [c, entries().filter((e) => e.ch === c).length]));
+    backfill();
     const close = Core.modal(`<div class="book-wrap">
-        <div class="book-tabs">${CHAPTERS.map((c) => `<button type="button" class="${c === chapter ? 'on' : ''}" data-ch="${c}">${c} <small>${counts[c]}</small></button>`).join('')}</div>
         <div class="book">
           <img class="book-img" src="${IMG.base}" alt="Книга заметок" width="1408" height="768">
-          <div class="book-left">${page(L, spread * 2)}</div>
-          <div class="book-right">${page(R, spread * 2 + 1)}</div>
-          <button type="button" class="book-corner left" data-turn="-1" aria-label="Предыдущие страницы" ${spread > 0 ? '' : 'disabled'}></button>
-          <button type="button" class="book-corner right" data-turn="1" aria-label="Следующие страницы" ${spread < pages - 1 ? '' : 'disabled'}></button>
+          <div class="book-left"></div><div class="book-right"></div>
+          <div class="book-left book-measure" aria-hidden="true"></div>
+          <button type="button" class="book-corner left" data-turn="-1" aria-label="Предыдущие страницы"></button>
+          <button type="button" class="book-corner right" data-turn="1" aria-label="Следующие страницы"></button>
         </div>
-        <p class="modal-tip">Разворот ${spread + 1} из ${pages}. Листай за нижние уголки страниц.</p>
+        <p class="modal-tip" data-book-tip></p>
         <button class="btn" id="modal-close" type="button">Закрыть книгу</button></div>`);
+    const measure = document.querySelector('.book-measure');
+    const { pages, starts } = layout(measure);
+    measure.remove();
     const img = document.querySelector('.book-img');
+    const show = () => {
+      const max = Math.ceil(pages.length / 2) - 1;
+      spread = Math.max(0, Math.min(spread, max));
+      document.querySelector('.book-left').innerHTML = pageHtml(pages[spread * 2], spread * 2, starts);
+      document.querySelector('.book-right').innerHTML = pageHtml(pages[spread * 2 + 1], spread * 2 + 1, starts);
+      document.querySelector('[data-turn="-1"]').disabled = spread === 0;
+      document.querySelector('[data-turn="1"]').disabled = spread >= max;
+      document.querySelector('[data-book-tip]').textContent = `Разворот ${spread + 1} из ${max + 1}. Листай за нижние уголки страниц.`;
+      img.src = IMG.base;
+      // открытые страницы — прочитаны
+      const b = B();
+      const seen = [pages[spread * 2], pages[spread * 2 + 1]].filter((p) => p && p.html).map((p) => p.html).join('');
+      [].concat(b.sql, b.http, b.blitz).forEach((k) => { const e = entry(k); if (e && !b.read.includes(k) && seen.includes(esc(e.title))) b.read.push(k); });
+      Core.save();
+      badge();
+      document.querySelectorAll('[data-goto]').forEach((g) => g.addEventListener('click', () => { spread = Math.floor(+g.dataset.goto / 2); show(); }));
+    };
     document.querySelectorAll('.book-corner').forEach((c) => {
       const side = c.classList.contains('left') ? 'left' : 'right';
       c.addEventListener('mouseenter', () => { if (!c.disabled) img.src = IMG[side]; });
       c.addEventListener('mouseleave', () => { img.src = IMG.base; });
-      c.addEventListener('click', () => { if (c.disabled) return; spread += +c.dataset.turn; close(); open(); });
+      c.addEventListener('click', () => { if (c.disabled) return; spread += +c.dataset.turn; show(); });
     });
-    document.querySelectorAll('[data-ch]').forEach((t) => t.addEventListener('click', () => { chapter = t.dataset.ch; spread = 0; close(); open(); }));
+    if (pending != null) { spread = pending; pending = null; }
+    show();
+    return close;
   }
 
   // картинки уголков подгружаем заранее, чтобы при наведении не мигало
   [IMG.right, IMG.left].forEach((src) => { const i = new Image(); i.src = src; });
-  $('book-btn').addEventListener('click', open);
-  setInterval(badge, 3000);
-  window.Book = { open, entries, badge };
+  $('book-btn').addEventListener('click', () => { spread = 0; open(); });
+  setInterval(() => { if (Core.ready) { try { backfill(); badge(); } catch (e) { console.error(e); } } }, 3000);
+  window.Book = { open, sqlKeys, httpKeys };
 })();

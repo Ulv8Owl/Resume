@@ -292,8 +292,9 @@
       out.extra = { done: mergeMap(da, db, (x, y) => mergeMap(x, y, num)) };
     }
     if (a.book || b.book) {
-      const union = (k) => Array.from(new Set(((a.book || {})[k] || []).concat((b.book || {})[k] || [])));
-      out.book = { announced: union('announced'), read: union('read') };
+      // ключи записей — объединением, порядок получения сохраняется
+      const union = (k) => Array.from(new Set(((newer.book || {})[k] || []).concat((older.book || {})[k] || [])));
+      out.book = { sql: union('sql'), http: union('http'), blitz: union('blitz'), announced: union('announced'), read: union('read'), filled: !!((a.book || {}).filled || (b.book || {}).filled), v: 2 };
     }
     out.sims = mergeMap(a.sims, b.sims, (x, y) => Object.assign({}, x, y, { levels: mergeMap(x.levels, y.levels, mergeStage) }));
 

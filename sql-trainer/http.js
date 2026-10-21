@@ -208,6 +208,7 @@
     const result = E.check(f.task, f.draft);
     f.last = result.res || null;
     if (result.ok) {
+      Core.track('http-sent', { text: f.draft, status: result.res && result.res.status });
       Core.track('http-task', { id: r.id });
       return victory();
     }

@@ -166,7 +166,25 @@
     }).join('')}</ul>`;
   }
 
+  // Во время Осады Архимаг не до разговоров: только оборона башни.
+  const SIEGE_SAY = [
+    'Не время для бесед, ученик! Орки у стен. Шар — наша последняя надежда: защити башню во что бы то ни стало.',
+    'Задания подождут. Сейчас каждая секунда на счету — в зал шара, и держи оборону, пока не стихнет штурм!',
+    'Слышишь, как бьют катапульты? Башня держится на тебе. Иди к шару и отбивай волну за волной!',
+  ];
+  function openSiege() {
+    Core.modal(`<div class="teacher-dlg">
+        <div class="teacher-head">
+          <img class="teacher-portrait" src="${PORTRAIT}" alt="Наставник">
+          <div><p class="eyebrow">Наставник · Архимаг</p><p class="teacher-say">${esc(SIEGE_SAY[Math.floor(Math.random() * SIEGE_SAY.length)])}</p></div>
+        </div>
+        <button class="btn attack" id="modal-next" type="button">⚔ В зал шара</button>
+        <button class="btn" id="modal-close" type="button">Понял</button>
+      </div>`, { onNext: () => Core.go('siege') });
+  }
+
   function open(say) {
+    if (window.Siege && window.Siege.active()) return openSiege();
     const d = S();
     d.greeted = true;
     Core.save();
@@ -225,6 +243,7 @@
   // Утром — новое задание: наставник сам зовёт, когда игрок впервые за день открывает главный экран.
   function greetIfNeeded() {
     if (!Core.ready || !document.getElementById('auth-gate').hidden || Core.modalOpen()) return;
+    if (window.Siege && window.Siege.active()) return; // во время Осады утреннее приветствие ждёт
     const d = S();
     if (d.greeted) return;
     open();

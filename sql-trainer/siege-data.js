@@ -259,7 +259,7 @@ window.SIEGE = {
       ],
     },
 
-    // ── Бой 4. HTTP-запросы ────────────────────────────────────────────────
+    // ── Бой 4. API в мини-Postman ─────────────────────────────────────────────
     {
       id: 'wall',
       type: 'postman',
@@ -267,38 +267,7 @@ window.SIEGE = {
       name: 'Штурм стены',
       enemy: 'Орки на лестницах',
       text: 'Орки лезут на стену по лестницам — каждый точный запрос к API сталкивает одну лестницу.',
-      tasks: [
-        {
-          q: 'Сценарий авторизации: POST /auth/login вернул токен tok_7f3a9c21. Теперь от имени этого пользователя создай гильдию: POST /guilds, Content-Type: application/json, тело {"name": "Стража стены"}. Ожидаем 201.',
-          answer: 'POST /guilds\nAuthorization: Bearer tok_7f3a9c21\nContent-Type: application/json\n\n{"name": "Стража стены"}',
-          hint: 'Полученный токен передаётся в заголовке Authorization со схемой Bearer.',
-          status: 201,
-        },
-        {
-          q: 'Проверь создание предмета: POST /items с токеном tok_7f3a9c21, Content-Type: application/json, тело {"name": "Котёл смолы", "rarity": "rare", "price": 750}. Ожидаем 201 Created.',
-          answer: 'POST /items\nAuthorization: Bearer tok_7f3a9c21\nContent-Type: application/json\n\n{"name": "Котёл смолы", "rarity": "rare", "price": 750}',
-          hint: 'Токен, тип содержимого, пустая строка и JSON-тело.',
-          status: 201,
-        },
-        {
-          q: 'Негативная проверка: создай предмет без обязательного поля price — ожидаем 422. Токен tok_7f3a9c21, Content-Type: application/json, тело {"name": "Таран", "rarity": "epic"}.',
-          answer: 'POST /items\nAuthorization: Bearer tok_7f3a9c21\nContent-Type: application/json\n\n{"name": "Таран", "rarity": "epic"}',
-          hint: 'JSON синтаксически верный, но в нём не хватает обязательного поля.',
-          status: 422,
-        },
-        {
-          q: 'Проверка ролей: читатель с токеном tok_reader_51b2 пытается создать гильдию — ожидаем 403. POST /guilds, Content-Type: application/json, тело {"name": "Тайный круг"}.',
-          answer: 'POST /guilds\nAuthorization: Bearer tok_reader_51b2\nContent-Type: application/json\n\n{"name": "Тайный круг"}',
-          hint: 'Токен валидный, но у роли reader нет прав на запись.',
-          status: 403,
-        },
-        {
-          q: 'Проверь пагинацию фильтра: получи вторую страницу предметов редкости rare по 3 штуки — параметры rarity=rare, limit=3 и offset=3.',
-          answer: 'GET /items?rarity=rare&limit=3&offset=3',
-          hint: 'offset — сколько записей пропустить, limit — размер страницы, rarity — фильтр.',
-          status: 200,
-        },
-      ],
+      tasks: [], // задания — в siege-postman.js: мини-Postman с проверкой по истории запросов
     },
   ],
 };

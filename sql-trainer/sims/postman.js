@@ -568,6 +568,9 @@
     return { error };
   }
 
+  // Песочница pm.* и подстановка {{переменных}} нужны и Осаде (мини-Postman в бою «Штурм стены»).
+  window.PmSandbox = { runScript, resolve };
+
   // ---------- данные для Runner ----------
 
   function parseCsvLine(line) {

@@ -286,6 +286,11 @@
       out.notes = Object.assign({}, older.notes, newer.notes, { paidFolders: num(na.paidFolders, nb.paidFolders), paidFiles: num(na.paidFiles, nb.paidFiles) });
     }
     out.trophies = mergeMap(a.trophies, b.trophies, num);
+    if (a.extra || b.extra) {
+      const da = (a.extra || {}).done || {};
+      const db = (b.extra || {}).done || {};
+      out.extra = { done: mergeMap(da, db, (x, y) => mergeMap(x, y, num)) };
+    }
     if (a.book || b.book) {
       const union = (k) => Array.from(new Set(((a.book || {})[k] || []).concat((b.book || {})[k] || [])));
       out.book = { announced: union('announced'), read: union('read') };

@@ -1,0 +1,46 @@
+/* «Практика собеседования»: список режимов, задания и типы шагов. Макеты — классы .siege-mock из siege.css. */
+.screen[data-screen="extra"] { display: grid; gap: 12px; align-content: start; }
+.x-lead { margin: 0; color: var(--dust); }
+.x-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.x-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px; text-align: left;
+  border-radius: var(--radius); border: 1px solid var(--seam); background: var(--slab); color: var(--parchment); font: inherit; cursor: pointer; }
+.x-card:hover { border-color: var(--torch); }
+.x-card.full { border-color: color-mix(in srgb, var(--rune) 60%, var(--seam)); }
+.x-ico { font-size: 1.9rem; line-height: 1; }
+.x-txt { display: grid; gap: 3px; min-width: 0; }
+.x-txt small { color: var(--dust); font-size: var(--step--1); }
+.x-prog { font-variant-numeric: tabular-nums; color: var(--torch); font-weight: 700; }
+.x-tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.x-tasks button { width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; text-align: left;
+  border-radius: var(--radius); border: 1px solid var(--seam); background: var(--slab); color: var(--parchment); font: inherit; cursor: pointer; }
+.x-tasks button:hover { border-color: var(--torch); }
+.x-num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--slab-2); color: var(--torch); font-weight: 700; }
+.x-stars { color: var(--torch); }
+.x-task { display: grid; gap: 12px; }
+.x-task h3 { margin: 0; }
+.x-brief { line-height: 1.5; }
+.x-brief p { margin: 0 0 0.5em; }
+.x-brief code, .x-why code { color: var(--torch); }
+.x-step { display: grid; gap: 10px; }
+.x-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--dust); font-size: var(--step--1); }
+.x-why { text-align: left; }
+.x-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; counter-reset: ln; }
+.x-lines li { counter-increment: ln; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 6px; align-items: start; }
+.x-lines li::before { content: counter(ln); color: var(--dust); font-size: 0.75rem; text-align: right; padding-top: 7px; }
+.x-lines button { text-align: left; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--seam); background: var(--slab-2); color: var(--parchment); font: inherit; cursor: pointer; white-space: pre-wrap; word-break: break-word; }
+.x-lines.mono button { font: 0.8rem/1.45 ui-monospace, Menlo, Consolas, monospace; }
+.x-lines button:hover { border-color: var(--torch); }
+.x-lines button.on { border-color: var(--torch); background: color-mix(in srgb, var(--torch) 18%, var(--slab-2)); box-shadow: 0 0 0 1px var(--torch); }
+.x-order { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
+.x-order li { padding: 4px 0; }
+.x-order li > span { display: inline-block; max-width: calc(100% - 80px); vertical-align: middle; margin-right: 8px; }
+.x-order .ghost-btn { padding: 2px 8px; }
+.x-match { display: grid; gap: 8px; }
+.x-match label { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; align-items: center; }
+.x-match select { padding: 7px 9px; border-radius: var(--radius); border: 1px solid var(--seam); background: var(--ink); color: var(--parchment); font: inherit; min-width: 0; }
+@media (max-width: 640px) { .x-match label { grid-template-columns: minmax(0, 1fr); } }
+/* доп. элементы макетов */
+.siege-mock .mock-phone { width: min(300px, 100%); margin: 0 auto; padding: 14px 12px 18px; border-radius: 28px; border: 6px solid #2a2d35; background: #fff; display: grid; gap: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15); }
+.siege-mock .mock-code { margin: 0; padding: 10px 12px; border-radius: 8px; background: #1d2433; color: #e4e8f1; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+.siege-mock table { border-collapse: collapse; width: 100%; }
+.siege-mock th, .siege-mock td { border: 1px solid #e1e4ec; padding: 6px 8px; text-align: left; }

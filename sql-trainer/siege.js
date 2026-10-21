@@ -568,6 +568,7 @@
         hints: [esc(t.hint || ''), `Понадобятся: <code>${keywords(t.solution).join('</code>, <code>')}</code>. Таблицы: <code>${(t.tables || []).join('</code>, <code>')}</code>.`, `<code>${esc(t.solution)}</code>`],
         taunts: ['Катапульта перезаряжается.', 'Камни ложатся всё ближе к стене.'],
       },
+      keep: () => active(),
       onWin: ({ wounds }) => { fight.wounds = wounds; victory(); },
       onDeath: () => death(),
     });

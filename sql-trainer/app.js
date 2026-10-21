@@ -651,6 +651,8 @@
   let opened = false;
   function open() {
     window.dispatchEvent(new Event('resize')); // шапка в бою спрятана — пересчитать высоту экрана
+    // в SQL пришли обычным путём, а внешняя комната осталась от Практики — возвращаемся к залам
+    if (ext && ext.keep && !ext.keep()) window.Dungeon.stopExternal();
     if (!opened) {
       opened = true;
       $('sql').value = '';

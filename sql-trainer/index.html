@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="http.css">
 <link rel="stylesheet" href="notes.css">
 <link rel="stylesheet" href="book.css">
+<link rel="stylesheet" href="extra.css">
 <link rel="stylesheet" href="siege.css">
 <link rel="stylesheet" href="sims/design.css">
 <link rel="stylesheet" href="sims/jmeter.css">
@@ -48,6 +49,7 @@
       <span class="chip gold" title="Золото">🪙 <b id="gold-text">0</b></span>
       <span class="chip sync guest" id="sync-chip">Гость</span>
       <button class="gear hud-teacher" type="button" data-teacher id="hud-teacher" title="Наставник: ежедневное задание" aria-label="Наставник: ежедневное задание"><img src="Avatars/Teacher.jpeg" alt=""><span class="teacher-count"></span></button>
+      <button class="gear" type="button" data-go="extra" title="Практика собеседования: чек-листы, баг-репорты, логи и другие задания" aria-label="Практика собеседования">🎓</button>
       <button class="gear book-btn" type="button" id="book-btn" title="Книга заметок: новые элементы запросов и понятия из боёв" aria-label="Книга заметок">📖<span class="book-count" hidden></span></button>
       <button class="gear" type="button" id="trophies-btn" title="Трофеи: портреты побеждённых монстров" aria-label="Трофеи">🏆</button>
       <button class="gear" type="button" data-go="shop" title="Лавка: зелья и свитки" aria-label="Лавка">🧪</button>
@@ -167,6 +169,7 @@
   <section class="screen" data-screen="http" hidden></section>
   <section class="screen" data-screen="notes" hidden></section>
   <section class="screen" data-screen="siege" hidden></section>
+  <section class="screen" data-screen="extra" hidden></section>
 </div>
 
 <section class="gate" id="auth-gate" hidden></section>
@@ -217,6 +220,16 @@
 <script src="siege-postman.js"></script>
 <script src="siege.js"></script>
 <script src="book.js"></script>
+<script src="extra-modes/testcases.js"></script>
+<script src="extra-modes/bugreport.js"></script>
+<script src="extra-modes/requirements.js"></script>
+<script src="extra-modes/logs.js"></script>
+<script src="extra-modes/mobile.js"></script>
+<script src="extra-modes/strategy.js"></script>
+<script src="extra-modes/webbasics.js"></script>
+<script src="extra-modes/security.js"></script>
+<script src="extra-modes/sqldata.js"></script>
+<script src="extra.js"></script>
 <script src="sims/quest.js"></script>
 <script src="sims/swagger.js"></script>
 <script src="sims/postman.js"></script>

@@ -104,3 +104,8 @@
 .pm-tests small { color: #a6a9b0; }
 .pm-submit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .pm-submit label { display: inline-flex; align-items: center; gap: 6px; }
+/* гибель в осаде: дань или разрушение башни */
+.siege-death { display: grid; gap: 10px; justify-items: center; text-align: center; }
+.siege-death p { margin: 0; }
+.siege-doom { border-color: var(--blood) !important; color: #ff8b7e; }
+.siege-doom:hover { background: color-mix(in srgb, var(--blood) 25%, transparent); }

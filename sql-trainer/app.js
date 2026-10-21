@@ -66,20 +66,24 @@
   let judge = null;
   let viewAct = null;
 
-  const room = () => D.rooms.find((r) => r.id === S().current);
+  // Внешняя комната: Осада играет свой SQL-бой на этом же экране (пентаграмма, схема, разведка, свитки).
+  // ext = { room, enemy: { name, icon, hit }, onWin, onDeath, label }; карта залов в это время не показывается.
+  let ext = null;
+  const room = () => (ext ? ext.room : D.rooms.find((r) => r.id === S().current));
+  const roomId = () => (ext ? ext.room.id : S().current);
 
   // Бой в зале: монстр после победы не умирает навсегда — каждый заход это новый бой с полным здоровьем монстра.
   const TICK_MS = 10000; // монстр бьёт каждые 10 секунд
   const MANA_REGEN = 4; // мана, восстанавливаемая за тот же промежуток
   let fight = { id: null, best: 0, wounds: 0, scrolls: [] };
   function F() {
-    if (fight.id !== S().current) fight = { id: S().current, best: 0, wounds: 0, scrolls: [] };
+    if (fight.id !== roomId()) fight = { id: roomId(), best: 0, wounds: 0, scrolls: [] };
     return fight;
   }
-  const resetFight = () => { fight = { id: S().current, best: 0, wounds: 0, scrolls: [] }; };
-  const progress = () => S().rooms[S().current];
+  const resetFight = () => { fight = { id: roomId(), best: 0, wounds: 0, scrolls: [] }; };
+  const progress = () => (ext ? { cleared: false, stars: 0 } : S().rooms[S().current]);
   const maxHp = () => Core.maxHp();
-  const attackOf = (r) => D.attackFor(r, maxHp());
+  const attackOf = (r) => (ext ? ext.enemy.hit : D.attackFor(r, maxHp()));
   const tickOf = (r) => Math.max(1, Math.round(attackOf(r) * 0.4));
   const actOf = (r) => D.acts.findIndex((a) => r.index >= a.from && r.index < a.to);
 
@@ -122,6 +126,12 @@
   }
 
   function renderMap() {
+    if (ext) {
+      $('acts').innerHTML = `<span class="siege-red">⚔ ${esc(ext.label)}</span>`;
+      $('act-topic').textContent = 'Пока идёт осада, залы Подземелья закрыты.';
+      $('tiles').innerHTML = '';
+      return;
+    }
     if (viewAct == null) viewAct = actOf(room());
     const acts = $('acts');
     acts.innerHTML = '';
@@ -163,14 +173,14 @@
     $('arena').classList.toggle('boss', !!r.boss);
     const sprite = $('monster-sprite');
     sprite.textContent = '';
-    sprite.setAttribute('style', portrait(r));
+    sprite.setAttribute('style', ext ? `background-image:url('${ext.enemy.icon}');background-size:112%;background-position:center` : portrait(r));
     sprite.classList.add('portrait');
     sprite.classList.remove('dead');
-    $('monster-floor').textContent = `${r.floor} · ${D.acts[actOf(r)].name}`;
+    $('monster-floor').textContent = ext ? ext.label : `${r.floor} · ${D.acts[actOf(r)].name}`;
     $('monster-name').innerHTML = esc(r.monster) + (r.boss ? '<span class="boss-tag">БОСС</span>' : '');
     const hp = monsterHp();
     setBar($('monster-bar'), hp / r.maxHp);
-    $('monster-meta').textContent = `HP ${hp} / ${r.maxHp} · бьёт на ${tickOf(r)} каждые 10 с и на ${attackOf(r)} за промах` +
+    $('monster-meta').textContent = ext ? `HP ${hp} / ${r.maxHp} · осада: −10 HP каждые 30 с и −${attackOf(r)} за промах` : `HP ${hp} / ${r.maxHp} · бьёт на ${tickOf(r)} каждые 10 с и на ${attackOf(r)} за промах` +
       (st.cleared ? ` · побеждён ${st.wins || 1} раз` : '');
     $('monster-intro').textContent = '';
   }
@@ -189,6 +199,7 @@
     const order = r.kind === 'query' ? (r.ordered ? ' · порядок строк проверяется' : ' · порядок строк не важен') : '';
     $('task-tables').innerHTML = 'Таблицы: ' + r.tables.map((t) => `<code>${t}</code>`).join(', ') + order;
     const rw = rewardFor(r);
+    if (ext) { $('reward').innerHTML = `<span>Добыча:</span><span class="chip gold">🪙 <b>${rw.gold}</b></span>`; return; }
     $('reward').innerHTML = `<span>Добыча:</span><span class="chip gold">🪙 <b>${rw.gold}</b></span><span class="chip">✦ ${rw.xp} XP</span>` +
       `<span class="stars">${starStr(rw.stars)}</span>` + (st.cleared ? `<span class="muted">лучшее: ${starStr(st.stars)}</span>` : '');
   }
@@ -427,7 +438,7 @@
     floater('−' + dmg, 'hurt');
     pulse($('arena'), 'flash');
     log('hurt', `${why} −${dmg} HP.`);
-    if (p.hp === 0) defeat();
+    if (p.hp === 0) { if (ext) ext.onDeath(); else defeat(); }
   }
 
   function attack() {
@@ -498,6 +509,7 @@
   }
 
   function victory() {
+    if (ext) { const done = ext; const wounds = F().wounds; resetFight(); save(); return done.onWin({ wounds }); }
     const r = room();
     const st = progress();
     const p = Core.state;
@@ -598,7 +610,13 @@
   function bind() {
     $('run-btn').addEventListener('click', scout);
     Core.openTrophies = openTrophies;
-    window.Dungeon = { portrait, giveTrophy, attackFor: (r) => D.attackFor(r, Core.maxHp()) };
+    window.Dungeon = {
+      portrait, giveTrophy, attackFor: (r) => D.attackFor(r, Core.maxHp()),
+      // Осада: сыграть свою задачу на экране SQL и вернуться к обычным залам
+      playExternal(o) { ext = o; resetFight(); $('sql').value = ''; Spell.update(''); log('info', o.intro || ''); renderAll(); if (judge) scout(); },
+      stopExternal() { if (!ext) return; ext = null; resetFight(); $('sql').value = ''; Spell.update(''); },
+      get external() { return ext; },
+    };
     // высота шапки — чтобы экран боя ровно занял окно без прокрутки
     const hudH = () => document.documentElement.style.setProperty('--hud-h', Math.max(0, document.querySelector('.hud').getBoundingClientRect().bottom) + 'px');
     window.addEventListener('resize', hudH);
@@ -619,7 +637,7 @@
 
     // Монстр не ждёт: каждые 10 секунд бьёт, пока ты в зале. Мана тем временем понемногу копится.
     setInterval(() => {
-      if (Core.screen !== 'sql' || !judge || modalOpen() || document.hidden || !$('auth-gate').hidden) return;
+      if (Core.screen !== 'sql' || ext || !judge || modalOpen() || document.hidden || !$('auth-gate').hidden) return;
       const p = Core.state;
       p.mana = Math.min(Core.maxMana(), (p.mana || 0) + MANA_REGEN);
       const r = room();

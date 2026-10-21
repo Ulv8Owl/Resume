@@ -3,7 +3,9 @@
 // играет Battle2, в меню тикает красный таймер, Архимаг говорит только об обороне.
 // В зале шара бой начинается сразу. Бои идут по кругу типов: SQL → Блиц → тест-дизайн/UX → API (мини-Postman),
 // а задание внутри типа — случайное из тех, что в этой осаде ещё не встречались (siege-data.js, siege-postman.js).
-// Без монстров и трофеев, но враги бьют: удар раз в 10 секунд и за каждую ошибку. Награда — золото.
+// Без монстров и трофеев, но орда бьёт постоянно: −10 HP каждые 30 секунд — в бою, в меню, на другой вкладке и даже
+// при закрытой игре (урон досчитывается по времени). Отдыха нет. Пал — плати дань орде (всё золото, минимум 1000)
+// или башня разрушена и весь прогресс начинается заново. SQL-бой идёт на обычном экране SQL (пентаграмма, схема).
 (function () {
   'use strict';
 
@@ -11,10 +13,12 @@
   const esc = Core.esc;
   const $ = (id) => document.getElementById(id);
   const ANSWER_MANA = 12;
-  const TICK_MS = 10000;
-  const MANA_REGEN = 4;
+  const SIEGE_HIT = 10; // урон орды…
+  const SIEGE_HIT_MS = 30000; // …каждые 30 секунд
+  const MANA_PER_SEC = 0.4; // мана в осаде понемногу копится (как в бою: +4 за 10 секунд)
+  const TRIBUTE_MIN = 1000;
   const DURATIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360];
-  const ALLOWED = ['home', 'siege', 'shop', 'focus']; // куда можно ходить во время осады
+  const ALLOWED = ['home', 'siege', 'shop']; // куда можно ходить во время осады (и в SQL, если идёт SQL-бой осады)
   const ORDER = ['sql', 'blitz', 'design', 'postman'];
   const TYPE_NAME = { sql: 'SQL', blitz: 'Блиц', design: 'Тест-дизайн и UX', postman: 'API · Postman' };
   const SIEGE_ICON = 'Avatars/Icon_Battle_5.jpeg';
@@ -28,18 +32,16 @@
   const left = () => { const s = S(); return s ? Math.max(0, s.until - Date.now()) : 0; };
   const clock = (ms) => { const t = Math.ceil(ms / 1000); const h = Math.floor(t / 3600); const m = Math.floor(t / 60) % 60; const s = t % 60; return `${h ? h + ':' + String(m).padStart(2, '0') : m}:${String(s).padStart(2, '0')}`; };
   const durText = (m) => (m < 60 ? `${m} мин` : `${m / 60} ч`.replace('.5', ',5'));
-  const tickDmg = () => Math.max(2, Math.round(Core.maxHp() * 0.04));
   const hitDmg = () => Math.max(5, Math.round(Core.maxHp() * 0.12));
   const shuffle = (a) => { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; };
 
   // ---------- начало и конец осады ----------
   function start(minutes) {
-    Core.state.siege = { started: Date.now(), until: Date.now() + minutes * 60000, minutes, wins: 0, turn: 0, seen: {} };
+    Core.state.siege = { started: Date.now(), until: Date.now() + minutes * 60000, minutes, wins: 0, turn: 0, seen: {}, lastHit: Date.now() };
     fight = null;
     Core.save();
     renderLaunch();
-    if (window.Town) window.Town.render();
-    Core.go('siege');
+    Core.go('home'); // в осаду игрок идёт сам — через зал шара
   }
 
   function finish(early) {
@@ -47,6 +49,7 @@
     if (!s) return;
     Core.state.siege = null;
     fight = null;
+    if (window.Dungeon && window.Dungeon.stopExternal) window.Dungeon.stopExternal();
     Core.save();
     renderLaunch();
     Core.go('home');
@@ -100,7 +103,7 @@
     return t;
   }
 
-  let fight = null; // { type, index, task, wounds, mistakes, note, noteCls, draft, last, picked, pm }
+  let fight = null; // { type, index, task, wounds, mistakes, note, noteCls, picked, pm }
   function nextFight() {
     const s = S();
     if (!s.seen) s.seen = {};
@@ -118,7 +121,7 @@
     const index = free[Math.floor(Math.random() * free.length)];
     s.seen[type] = seen.concat(index);
     s.turn = (s.turn || 0) + 1;
-    fight = { type, index, task: prepare(type, pool[index]), wounds: 0, mistakes: 0, note: '', noteCls: '', draft: '', last: null, picked: [] };
+    fight = { type, index, task: prepare(type, pool[index]), wounds: 0, mistakes: 0, note: '', noteCls: '', picked: [] };
     if (type === 'postman') fight.pm = newPm(fight.task);
     Core.save();
   }
@@ -189,10 +192,24 @@
       <div class="pm-tabs">${tabs.map(([k, n]) => `<button type="button" class="${pm.resTab === k ? 'on' : ''}" data-res-tab="${k}">${n}</button>`).join('')}</div>${inner}`;
   }
 
+  // Документация API — как её дают на собеседовании: эндпоинты, параметры, авторизация, коды ответов.
+  const API_DOC = `<details class="http-ref"><summary>📘 Документация API «Хроники гильдии»</summary>
+    <p>База: <code>{{baseUrl}}</code> = <code>https://api.chronicles.guild/v1</code>. Тело запросов и ответов — JSON.</p>
+    <ul>
+      <li><code>POST /auth/login</code> — тело <code>{"login", "password"}</code> → <code>{"token"}</code>. mage / chronicles — тестировщик (все права), scribe / quill — читатель (только чтение).</li>
+      <li>Авторизация: заголовок <code>Authorization: Bearer &lt;token&gt;</code>. Без токена — 401, читателю запись запрещена — 403.</li>
+      <li><code>GET /me</code> — кто я по токену.</li>
+      <li><code>GET /items</code> — <code>rarity</code> (common|rare|epic|legendary), <code>min_price</code>, <code>sort</code> (id|name|price), <code>order</code> (asc|desc), <code>limit</code> (1–50, по умолчанию 10), <code>offset</code>. Общее количество — в заголовке ответа <code>X-Total-Count</code>.</li>
+      <li><code>POST /items</code>, <code>PUT /items/{id}</code>, <code>PATCH /items/{id}</code>, <code>DELETE /items/{id}</code> — предмет: <code>name</code> (1–40 символов), <code>rarity</code>, <code>price</code> (целое 1–10000), <code>description</code>. Ошибки полей — 422.</li>
+      <li><code>GET/POST /guilds</code>, <code>GET/DELETE /guilds/{id}</code> — гильдия: <code>name</code> (3–40, уникальное без учёта регистра → иначе 409), <code>motto</code> (до 80).</li>
+      <li><code>GET /heroes</code> (<code>class</code>, <code>limit</code>), <code>GET /heroes/{id}</code>.</li>
+      <li><code>GET /quests</code> — обязательный заголовок <code>X-Realm</code> (north|south|east|west), <code>status</code> (open|done), язык — <code>Accept-Language</code>.</li>
+    </ul></details>`;
+
   function pmHtml() {
     const t = fight.task;
     const pm = fight.pm;
-    return `<p class="eyebrow">Штурм стены · задание тестировщика</p><p class="blitz-text pm-q">${t.q}</p>
+    return `<p class="eyebrow">Штурм стены · задание тестировщика</p><p class="blitz-text pm-q">${t.q}</p>${API_DOC}
       <div class="pm-app">
         <div class="pm-env"><span>Environment: <b>Осада</b></span><button type="button" class="ghost-btn" data-env>👁 Переменные</button></div>
         ${pm.envOpen ? `<table class="pm-htable pm-envtable">${pm.env.map((v) => `<tr><th>${esc(v.key)}</th><td>${esc(v.value === '' ? '—' : String(v.value))}</td></tr>`).join('')}</table>` : ''}
@@ -294,7 +311,7 @@
     return `<img class="siege-enemy" src="${b.icon || SIEGE_ICON}" alt="">
       <p class="monster-floor">${esc(TYPE_NAME[fight.type])} · бой ${s.turn} · побед ${s.wins || 0}</p>
       <h2 class="monster-name">${esc(b.enemy || 'Орки')}</h2>
-      <div class="monster-meta">${esc(b.name || '')} · бьют на ${tickDmg()} каждые 10 с и на ${hitDmg()} за ошибку · ответ стоит ${ANSWER_MANA} маны</div>
+      <div class="monster-meta">${esc(b.name || '')} · осада: −${SIEGE_HIT} HP каждые 30 с везде, −${hitDmg()} за ошибку · ответ стоит ${ANSWER_MANA} маны</div>
       <div class="player-bars">
         <div><span>❤ Ты <b>${Core.state.hp} / ${Core.maxHp()}</b></span><div class="bar hp"><i style="width:${Core.state.hp / Core.maxHp() * 100}%"></i></div></div>
         <div><span>💧 Мана <b>${Math.floor(Core.state.mana)} / ${Core.maxMana()}</b></span><div class="bar mana"><i style="width:${Core.state.mana / Core.maxMana() * 100}%"></i></div></div>
@@ -307,25 +324,10 @@
       }).join('')}<button type="button" class="belt-shop" data-shop>🧪 Лавка</button></div>`;
   }
 
-  function table(res) {
-    if (!res || !res.columns || !res.columns.length) return '<p class="http-empty">Пусто.</p>';
-    const rows = res.values.slice(0, 50);
-    return `<div class="siege-table"><table><thead><tr>${res.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
-      <tbody>${rows.map((r) => `<tr>${r.map((v) => `<td>${v === null ? '<i>NULL</i>' : esc(String(v))}</td>`).join('')}</tr>`).join('')}</tbody></table>
-      ${res.values.length > 50 ? `<p class="http-empty">…и ещё ${res.values.length - 50} строк</p>` : ''}</div>`;
-  }
-
   function taskHtml() {
     const t = fight.task;
     const f = fight;
     if (f.type === 'postman') return pmHtml();
-    if (f.type === 'sql') {
-      return `<p class="eyebrow">Катапульты · SQL</p><p class="blitz-text">${t.task}</p>${t.tables ? `<p class="http-empty">Таблицы: ${t.tables.map((x) => `<code>${esc(x)}</code>`).join(', ')}</p>` : ''}
-        <textarea class="http-editor" data-editor spellcheck="false" placeholder="SELECT …">${esc(f.draft)}</textarea>
-        <div class="http-actions"><button class="btn" type="button" data-scout>Разведать</button><button class="btn attack" type="button" data-send>⚔ Атаковать</button>
-          <span class="http-keys"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> — атака</span></div>
-        ${f.last ? (f.last.error ? `<pre class="http-res bad">${esc(f.last.error)}</pre>` : `<p class="eyebrow">${esc(f.last.label)}</p>${table(f.last.res)}`) : ''}`;
-    }
     if (f.type === 'blitz') {
       return `<p class="eyebrow">Вожак · Блиц</p><p class="blitz-text">${esc(t.q)}</p>
         <div class="blitz-options">${t.options.map((o, i) => `<button type="button" class="blitz-opt" data-opt="${i}">${esc(o)}</button>`).join('')}</div>`;
@@ -342,6 +344,7 @@
   function render() {
     if (!active()) { screen.innerHTML = ''; return; }
     if (!fight) nextFight();
+    if (fight.type === 'sql') { screen.innerHTML = ''; return; } // SQL-бой идёт на экране SQL
     screen.innerHTML = `<div class="siege-head">
         <button class="ghost-btn" type="button" data-back>← В башню</button>
         <h2 class="sim-title"><img class="siege-head-icon" src="${SIEGE_ICON}" alt=""> Осада башни</h2>
@@ -377,32 +380,12 @@
   function bindTask() {
     const box = screen.querySelector('.siege-task');
     if (fight.type === 'postman') return bindPm(box);
-    const ed = box.querySelector('[data-editor]');
-    if (ed) {
-      ed.addEventListener('input', () => { fight.draft = ed.value; });
-      ed.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); answer(); } });
-    }
-    const send = box.querySelector('[data-send]');
-    if (send) send.addEventListener('click', () => answer());
-    const scout = box.querySelector('[data-scout]');
-    if (scout) scout.addEventListener('click', doScout);
     box.querySelectorAll('[data-opt]').forEach((b) => b.addEventListener('click', () => answer(+b.dataset.opt)));
     box.querySelectorAll('[data-pick]').forEach((c) => c.addEventListener('change', () => {
       fight.picked = [...box.querySelectorAll('[data-pick]:checked')].map((x) => +x.dataset.pick);
     }));
     const multi = box.querySelector('[data-multi]');
     if (multi) multi.addEventListener('click', () => answer(fight.picked.slice()));
-  }
-
-  const roomOf = () => ({ id: `siege-sql-${fight.index}`, kind: 'query', solution: fight.task.solution, ordered: !!fight.task.ordered, tables: fight.task.tables || [] });
-  const judge = () => window.Dungeon && window.Dungeon.judge;
-
-  function doScout() {
-    const j = judge();
-    if (!j) { fight.note = 'Хроники ещё загружаются — попробуй через секунду.'; fight.noteCls = ''; return renderArena(); }
-    const r = j.scout(roomOf(), fight.draft);
-    fight.last = { res: r.res, error: r.error, label: 'разведка (бесплатно)' };
-    renderTask();
   }
 
   // Проверка ответа: { ok, why } или { soft } — подсказка без урона и без траты маны
@@ -419,17 +402,11 @@
       const r = t.check({ history: fight.pm.history, env: Object.fromEntries(fight.pm.env.map((v) => [v.key, v.value])), answer: fight.pm.answer || '' });
       return r === true ? { ok: true } : { ok: false, why: r };
     }
-    const j = judge();
-    if (!j) return { soft: 'Хроники ещё загружаются — попробуй через секунду.' };
-    if (!input.trim()) return { soft: 'Сначала напиши запрос.' };
-    const ev = j.evaluate(roomOf(), input);
-    fight.last = ev.error ? { error: ev.error } : { res: ev.display && ev.display.res, label: 'атака' };
-    return { ok: !ev.error && ev.exact, why: ev.error ? 'Ошибка в запросе.' : (ev.notes && ev.notes[0]) || 'Результат не совпадает с заданием.' };
+    return { soft: 'SQL-бой идёт на экране SQL.' };
   }
 
   function answer(input) {
     const p = Core.state;
-    if (input === undefined) input = fight.draft;
     const r = check(input);
     if (r.soft) { fight.note = r.soft; fight.noteCls = 'hurt'; return renderArena(); }
     if (p.mana < ANSWER_MANA) {
@@ -455,11 +432,10 @@
     fight.wounds++;
     fight.note = `${why} −${dmg} HP.`;
     fight.noteCls = 'hurt';
-    if (p.hp === 0) defeat();
+    if (p.hp === 0) death();
   }
 
   function scrollAnswer(t) {
-    if (fight.type === 'sql') return `<pre class="http-res">${esc(t.solution)}</pre>`;
     if (fight.type === 'postman') return `<pre class="http-res">${esc(t.solution)}</pre>`;
     if (fight.type === 'blitz') return `<p class="scroll-answer">Верный ответ: <b>${esc(t.options[t.right])}</b></p><p>${esc(t.why || '')}</p>`;
     return `<p class="scroll-answer">Верно: <b>${t.right.map((i) => esc(t.options[i])).join('; ')}</b></p><p>${esc(t.why || '')}</p>`;
@@ -494,44 +470,108 @@
     Core.state.hp += heal;
     fight = null;
     nextFight();
+    if (window.Dungeon.external) window.Dungeon.stopExternal();
     Core.renderHud();
-    render();
+    Core.go('siege'); // следующий бой: если это SQL — откроется экран SQL
     Core.modal(`<div class="big"><img class="siege-modal-icon" src="${b.icon || SIEGE_ICON}" alt=""></div><h3>Атака отбита!</h3>${extra}
       <ul class="loot"><li><span>Золото</span><span>+${gold}</span></li>${heal ? `<li><span>Передышка у стены</span><span>+${heal} HP</span></li>` : ''}</ul>
       <p class="modal-tip">Следующая волна: ${esc(TYPE_NAME[fight.type])}.</p>
       <button class="btn attack" id="modal-close" type="button">⚔ В бой</button>`);
   }
 
-  function defeat() {
-    const p = Core.state;
-    const lost = Math.floor(p.gold * 0.25);
-    p.gold -= lost;
-    p.hp = Core.maxHp();
-    p.mana = Core.maxMana();
+  // ---------- гибель в осаде: дань или разрушение башни ----------
+  let dying = false;
+  function death() {
+    if (dying) return;
+    dying = true;
     fight = null;
-    nextFight();
-    Core.renderHud();
-    render();
-    Core.modal(`<div class="big">🪦</div><h3>Орки прорвались</h3>
-      <ul class="loot"><li class="minus"><span>Потеряно золота</span><span>−${lost}</span></li><li><span>Здоровье и мана восстановлены</span><span>${p.hp} HP</span></li></ul>
-      <button class="btn attack" id="modal-close" type="button">Снова на стены</button>`, { defeat: true });
+    if (window.Dungeon && window.Dungeon.stopExternal) window.Dungeon.stopExternal();
+    if (Core.screen !== 'home') Core.go('home');
+    const gold = Core.state.gold;
+    const can = gold >= TRIBUTE_MIN;
+    Core.modal(`<div class="siege-death"><img class="siege-modal-icon" src="${SIEGE_ICON}" alt="">
+      <h3>Орда прорвалась в башню</h3>
+      <p>Маги ранены, шар гаснет. Вожак орды предлагает сделку.</p>
+      <button class="btn attack" type="button" id="siege-pay" ${can ? '' : 'disabled'}>Заплатить дань: 🪙 ${gold}</button>
+      ${can ? '' : `<p class="siege-red">Орда не возьмёт меньше ${TRIBUTE_MIN} золота.</p>`}
+      <button class="btn siege-doom" type="button" id="siege-doom">Отказаться — башня будет разрушена</button>
+      <p class="modal-tip">Отказ: орда разрушит башню окончательно, маги погибнут или уйдут в рабство — весь прогресс будет потерян, игра начнётся сначала.</p></div>`);
+    $('siege-pay').addEventListener('click', () => {
+      if (Core.state.gold < TRIBUTE_MIN) return;
+      const paid = Core.state.gold;
+      Core.state.gold = 0;
+      Core.state.hp = Core.maxHp();
+      Core.state.mana = Core.maxMana();
+      Core.state.siege = null; // взяв дань, орда уходит
+      dying = false;
+      Core.save();
+      renderLaunch();
+      Core.go('home');
+      Core.modal(`<div class="big">💰</div><h3>Орда ушла с данью</h3><p>Отдано ${paid} золота. Башня устояла — маги залечивают раны.</p>
+        <button class="btn attack" id="modal-close" type="button">В башню</button>`);
+    });
+    $('siege-doom').addEventListener('click', () => {
+      if (!window.confirm('Точно? Весь прогресс — звание, опыт, золото, залы, конспекты — будет потерян навсегда.')) return;
+      Core.resetProgress();
+    });
   }
 
-  // таймер осады, удары врагов, красный таймер в меню
-  setInterval(() => {
-    if (!Core.ready) return;
+  // Давление орды: −10 HP каждые 30 секунд с начала осады — досчитывается по часам, поэтому работает
+  // и на другой вкладке, и после закрытия игры. Заодно понемногу копится мана.
+  let manaAt = Date.now();
+  function pressure() {
     const s = S();
-    if (s && s.until <= Date.now() && !Core.modalOpen()) return finish(false);
+    const now = Date.now();
+    if (!s || dying) return;
+    const until = Math.min(now, s.until);
+    if (!s.lastHit) s.lastHit = s.started || now;
+    const hits = Math.floor((until - s.lastHit) / SIEGE_HIT_MS);
+    if (now > manaAt && active() && !document.hidden) Core.state.mana = Math.min(Core.maxMana(), (Core.state.mana || 0) + (now - manaAt) / 1000 * MANA_PER_SEC);
+    manaAt = now;
+    if (hits > 0) {
+      s.lastHit += hits * SIEGE_HIT_MS;
+      Core.state.hp = Math.max(0, Math.min(Core.state.hp, Core.maxHp()) - hits * SIEGE_HIT);
+      Core.save();
+      if (fight && Core.screen === 'siege') { fight.note = `Орда бьёт по башне: −${hits * SIEGE_HIT} HP.`; fight.noteCls = 'hurt'; }
+      Core.refresh();
+    }
+    if (Core.state.hp <= 0) death();
+  }
+
+  // таймер осады, давление орды, красный таймер в меню — раз в секунду (и сразу после загрузки)
+  setInterval(() => {
+    if (!Core.ready || !$('auth-gate').hidden) return;
+    const s = S();
+    if (!s) return;
+    pressure();
+    if (dying || !S()) return;
+    if (s.until <= Date.now() && !Core.modalOpen()) return finish(false);
     renderLaunch();
     const c = screen.querySelector('[data-clock]');
     if (c) c.textContent = `⏳ ${clock(left())}`;
   }, 1000);
-  setInterval(() => {
-    if (Core.screen !== 'siege' || !fight || !active() || Core.modalOpen() || document.hidden || !$('auth-gate').hidden) return;
-    Core.state.mana = Math.min(Core.maxMana(), (Core.state.mana || 0) + MANA_REGEN);
-    hurt(tickDmg(), `${(battleOf(fight.type) || {}).enemy || 'Орки'} атакуют:`);
-    if (Core.state.hp > 0) renderArena();
-  }, TICK_MS);
+
+  // SQL-бой осады идёт на экране SQL: там пентаграмма, схема Хроник, разведка и свитки, как в Подземелье
+  const keywords = (sql) => ['JOIN', 'LEFT JOIN', 'GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT', 'DISTINCT', 'COUNT', 'SUM', 'MAX', 'IN (SELECT', 'IS NULL', 'WHERE']
+    .filter((k) => sql.toUpperCase().includes(k)).filter((k, _, all) => !(k === 'JOIN' && all.includes('LEFT JOIN')));
+  function playSql() {
+    const t = fight.task;
+    const b = battleOf('sql') || {};
+    window.Dungeon.playExternal({
+      label: `Осада · ${b.name || 'Катапульты'}`,
+      intro: `Осада: ${b.enemy || 'катапульты'} у ворот. Залп — точный SQL-запрос.`,
+      enemy: { name: b.enemy, icon: b.icon || SIEGE_ICON, hit: hitDmg() },
+      room: {
+        id: `siege-sql-${fight.index}`, kind: 'query', index: 0, maxHp: 100, gold: GOLD.sql, xp: 0,
+        monster: b.enemy || 'Катапульты', floor: 'Осада', spell: 'Залп по катапультам', topic: keywords(t.solution).join(', ') || 'SELECT',
+        task: t.task, tables: t.tables || [], solution: t.solution, ordered: !!t.ordered,
+        hints: [esc(t.hint || ''), `Понадобятся: <code>${keywords(t.solution).join('</code>, <code>')}</code>. Таблицы: <code>${(t.tables || []).join('</code>, <code>')}</code>.`, `<code>${esc(t.solution)}</code>`],
+        taunts: ['Катапульта перезаряжается.', 'Камни ложатся всё ближе к стене.'],
+      },
+      onWin: ({ wounds }) => { fight.wounds = wounds; victory(); },
+      onDeath: () => death(),
+    });
+  }
 
   $('siege-btn').addEventListener('click', launchClick);
 
@@ -539,14 +579,19 @@
     icon: '🔮',
     xpOf: () => 0,
     progressOf: () => ({ done: (S() && S().wins) || 0, available: 0 }),
-    open: () => { if (!active()) return Core.go('home'); render(); },
+    open: () => {
+      if (!active()) return Core.go('home');
+      if (!fight) nextFight();
+      if (fight.type === 'sql') { playSql(); return Core.go('sql'); }
+      render();
+    },
     // перерисовка не должна сбивать набранный текст: обновляем только карточку бойца
-    refresh: () => { if (fight) renderArena(); else render(); },
+    refresh: () => { if (fight && fight.type !== 'sql') renderArena(); else render(); },
   });
 
   window.Siege = {
     active,
-    blocks: (screen) => active() && !ALLOWED.includes(screen),
+    blocks: (screen) => active() && !ALLOWED.includes(screen) && !(screen === 'sql' && window.Dungeon && window.Dungeon.external),
     renderLaunch,
     _fight: () => fight, // для автотестов
   };

@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="blitz.css">
 <link rel="stylesheet" href="http.css">
 <link rel="stylesheet" href="notes.css">
-<link rel="stylesheet" href="focus.css">
+<link rel="stylesheet" href="book.css">
 <link rel="stylesheet" href="siege.css">
 <link rel="stylesheet" href="sims/design.css">
 <link rel="stylesheet" href="sims/jmeter.css">
@@ -48,7 +48,7 @@
       <span class="chip gold" title="Золото">🪙 <b id="gold-text">0</b></span>
       <span class="chip sync guest" id="sync-chip">Гость</span>
       <button class="gear hud-teacher" type="button" data-teacher id="hud-teacher" title="Наставник: ежедневное задание" aria-label="Наставник: ежедневное задание"><img src="Avatars/Teacher.jpeg" alt=""><span class="teacher-count"></span></button>
-      <button class="gear" type="button" data-go="focus" title="Протокол фокуса: цель, спринты и таймеры" aria-label="Протокол фокуса">🎯</button>
+      <button class="gear book-btn" type="button" id="book-btn" title="Книга заметок: новые элементы запросов и понятия из боёв" aria-label="Книга заметок">📖<span class="book-count" hidden></span></button>
       <button class="gear" type="button" id="trophies-btn" title="Трофеи: портреты побеждённых монстров" aria-label="Трофеи">🏆</button>
       <button class="gear" type="button" data-go="shop" title="Лавка: зелья и свитки" aria-label="Лавка">🧪</button>
       <button class="gear" id="settings-btn" type="button" title="Настройки" aria-label="Настройки">⚙</button>
@@ -166,7 +166,6 @@
   <section class="screen" data-screen="blitz" hidden></section>
   <section class="screen" data-screen="http" hidden></section>
   <section class="screen" data-screen="notes" hidden></section>
-  <section class="screen" data-screen="focus" hidden></section>
   <section class="screen" data-screen="siege" hidden></section>
 </div>
 
@@ -214,10 +213,10 @@
 <script src="http-tasks/act3.js"></script>
 <script src="http.js"></script>
 <script src="notes.js"></script>
-<script src="focus.js"></script>
 <script src="siege-data.js"></script>
 <script src="siege-postman.js"></script>
 <script src="siege.js"></script>
+<script src="book.js"></script>
 <script src="sims/quest.js"></script>
 <script src="sims/swagger.js"></script>
 <script src="sims/postman.js"></script>

@@ -201,7 +201,8 @@
   // Вне Подземелья (в башне и других режимах) здоровье восстанавливается за 10 секунд: +20% каждые 2 секунды;
   // мана — в прежнем темпе (+6 за 2 секунды).
   setInterval(() => {
-    if (Core.BATTLE.includes(Core.screen) || document.hidden) return;
+    // во время Осады отдыха нет: орда бьёт постоянно, лечат только зелья и передышка после победы
+    if (Core.BATTLE.includes(Core.screen) || document.hidden || (window.Siege && window.Siege.active())) return;
     const st = Core.state;
     const hp = Math.min(Core.maxHp(), (st.hp || 0) + Math.ceil(Core.maxHp() * 0.2));
     const mana = Math.min(Core.maxMana(), (st.mana || 0) + 6);
@@ -260,6 +261,8 @@
     return out;
   }
   function mergeStates(a, b) {
+    // прогресс сброшен (башня пала в Осаде): более новая «эпоха» целиком заменяет старую, без объединения
+    if ((a.epoch || 0) !== (b.epoch || 0)) return Object.assign(freshState(), (a.epoch || 0) > (b.epoch || 0) ? a : b);
     const newer = (a.updatedAt || 0) >= (b.updatedAt || 0) ? a : b;
     const older = newer === a ? b : a;
     const out = Object.assign(freshState(), older, newer);
@@ -283,6 +286,10 @@
       out.notes = Object.assign({}, older.notes, newer.notes, { paidFolders: num(na.paidFolders, nb.paidFolders), paidFiles: num(na.paidFiles, nb.paidFiles) });
     }
     out.trophies = mergeMap(a.trophies, b.trophies, num);
+    if (a.book || b.book) {
+      const union = (k) => Array.from(new Set(((a.book || {})[k] || []).concat((b.book || {})[k] || [])));
+      out.book = { announced: union('announced'), read: union('read') };
+    }
     out.sims = mergeMap(a.sims, b.sims, (x, y) => Object.assign({}, x, y, { levels: mergeMap(x.levels, y.levels, mergeStage) }));
 
     const ta = a.theory || {};
@@ -462,6 +469,15 @@
   }
 
   // ---------- экраны ----------
+
+  // Начать игру заново: всё, кроме аккаунта, обнуляется; эпоха +1, чтобы облако не вернуло старый прогресс слиянием.
+  Core.resetProgress = async function resetProgress() {
+    const epoch = (Core.state.epoch || 0) + 1;
+    Core.state = Object.assign(freshState(), { epoch, updatedAt: Date.now() });
+    writeLocal();
+    if (Core.account) { clearTimeout(cloudTimer); await pushCloud(); }
+    location.reload();
+  };
 
   Core.go = function go(screen) {
     if (window.Siege && window.Siege.blocks(screen)) screen = 'siege'; // во время Осады открыт только зал шара

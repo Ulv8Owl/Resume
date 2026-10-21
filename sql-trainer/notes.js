@@ -78,7 +78,7 @@
     if (f && words > (f.paid || 0)) {
       const gain = words - (f.paid || 0);
       f.paid = words;
-      Core.track('notes-words', { n: gain }); // для очков «Протокола фокуса»
+      Core.track('notes-words', { n: gain });
       pay(gain, `+${gain} 🪙 за ${gain} ${plural(gain, 'новое слово', 'новых слова', 'новых слов')}.`);
     } else {
       note = '';

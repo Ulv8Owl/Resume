@@ -30,7 +30,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.chdir(BASE_DIR)
 
-APP_VERSION = "2.1-linux"
+APP_VERSION = "2.2-linux"
 PROFILE_DIR = "chrome_profile"
 LINKS_FILE = "vacancies_links.txt"
 APPLIED_FILE = "applied_links.txt"
@@ -47,6 +47,8 @@ ERROR_LIMIT = 3
 is_running = False
 log_queue = queue.Queue()
 ui_queue = queue.Queue()  # события из рабочих потоков -> главный поток Tk
+auth_done_event = threading.Event()  # пользователь нажал «Я вошёл»
+auth_waiting = False
 
 
 # ==========================================================
@@ -135,48 +137,79 @@ def get_driver():
     return ChromeWebDriver(options=options)
 
 
+def is_logged_in(driver):
+    """True — вошёл, False — не вошёл, None — определить не удалось."""
+    # hh.ru ставит cookie hhrole: "anonymous" для гостя, иначе роль пользователя
+    role = driver.get_cookie("hhrole")
+    if role and role.get("value"):
+        return role["value"] != "anonymous"
+    if driver.find_elements(By.CSS_SELECTOR, '[data-qa="login"]'):
+        return False  # Кнопка "Войти" есть = не авторизован
+    return None
+
+
 def check_auth(driver):
     driver.get("https://hh.ru/")
     time.sleep(random.uniform(2.0, 4.0))
-    try:
-        driver.find_element(By.CSS_SELECTOR, '[data-qa="login"]')
-        return False  # Кнопка "Войти" есть = не авторизован
-    except NoSuchElementException:
-        return True  # Кнопки нет = авторизован
+    return is_logged_in(driver) is not False
 
 
 # ==========================================================
 # 🧠 БИЗНЕС-ЛОГИКА (ПОТОКИ)
 # ==========================================================
 def task_authorize(ui_callback):
-    global is_running
+    global is_running, auth_waiting
     if is_running: return
     is_running = True
     ui_callback("auth_start")
+    driver = None
 
     try:
         driver = get_driver()
-        log_message("🌐 Браузер открыт. Выполните вход вручную...")
+        driver.get("https://hh.ru/account/login")
+        log_message("🌐 Браузер открыт. Войдите в hh.ru в ЭТОМ окне, затем нажмите «✅ Я вошёл».")
 
-        attempts = 0
-        while attempts < 60:  # Ждем до 5 минут
-            if check_auth(driver):
-                log_message("✅ Авторизация успешно подтверждена!")
-                ui_callback("auth_success")
-                break
-            time.sleep(3)
-            attempts += 1
-        else:
-            log_message("❌ Таймаут ожидания авторизации.")
-            ui_callback("auth_error", "Не дождались входа на hh.ru (около 3 минут). Попробуйте ещё раз.")
+        deadline = time.time() + 15 * 60
+        while True:
+            auth_done_event.clear()
+            auth_waiting = True
+            ui_callback("auth_wait")
+            # Ждём нажатия кнопки, страницу не трогаем, пока пользователь вводит данные
+            while not auth_done_event.wait(2):
+                if time.time() > deadline:
+                    raise TimeoutError("Не дождались входа (15 минут). Попробуйте ещё раз.")
+                try:
+                    driver.window_handles
+                except WebDriverException:
+                    raise RuntimeError("Окно браузера закрыто до завершения входа.")
+            auth_waiting = False
+            ui_callback("auth_checking")
 
-        driver.quit()
+            driver.get("https://hh.ru/")
+            time.sleep(random.uniform(2.0, 4.0))
+            state = is_logged_in(driver)
+            if state is False:
+                log_message("⚠️ hh.ru показывает, что вход не выполнен. Войдите и снова нажмите «Я вошёл».")
+                ui_callback("auth_not_yet")
+                driver.get("https://hh.ru/account/login")
+                continue
+            if state is None:
+                log_message("ℹ️ Не удалось однозначно проверить вход — считаем, что вы вошли.")
+            log_message("✅ Авторизация сохранена в профиле программы.")
+            ui_callback("auth_success")
+            break
     except Exception as e:
         err = getattr(e, "msg", None) or str(e)
         log_message(f"❌ Ошибка авторизации: {err}")
         ui_callback("auth_error", err)
     finally:
+        auth_waiting = False
         is_running = False
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
         ui_callback("auth_finish")
 
 
@@ -540,7 +573,16 @@ class AppUI:
     def handle_callback(self, event, data=None):
         if event == "auth_start":
             self.btn_auth.config(state=tk.DISABLED)
-            self.set_auth_status("Ожидание входа в браузере...", "orange")
+            self.btn_reset.config(state=tk.DISABLED)
+            self.set_auth_status("Открываем браузер...", "orange")
+        elif event == "auth_wait":
+            self.btn_auth.config(text="✅ Я вошёл", state=tk.NORMAL)
+            self.set_auth_status("Войдите в окне браузера и нажмите «Я вошёл»", "orange")
+        elif event == "auth_checking":
+            self.btn_auth.config(state=tk.DISABLED)
+            self.set_auth_status("Проверяем вход...", "orange")
+        elif event == "auth_not_yet":
+            messagebox.showwarning("Вход не выполнен", "hh.ru показывает, что вы не вошли.\nВойдите в открытом окне браузера и снова нажмите «Я вошёл».")
         elif event == "auth_success":
             self.set_auth_status("Авторизован ✅", "green")
             messagebox.showinfo("Успех", "Авторизация подтверждена и сохранена!")
@@ -549,7 +591,8 @@ class AppUI:
             if data:
                 messagebox.showerror("Ошибка авторизации", str(data)[:800])
         elif event == "auth_finish":
-            self.btn_auth.config(state=tk.NORMAL)
+            self.btn_auth.config(text="🔑 Авторизоваться", state=tk.NORMAL)
+            self.btn_reset.config(state=tk.NORMAL)
         elif event == "auth_reset":
             self.set_auth_status("Не авторизован (сброшено)", "red")
             messagebox.showinfo("Успех", "Сессия браузера успешно удалена.")
@@ -580,6 +623,9 @@ class AppUI:
 
     # --- Обработчики кнопок ---
     def on_auth(self):
+        if auth_waiting:
+            auth_done_event.set()  # кнопка в режиме «Я вошёл»
+            return
         threading.Thread(target=task_authorize, args=(self.post_callback,), daemon=True).start()
 
     def on_reset_auth(self):

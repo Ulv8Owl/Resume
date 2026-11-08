@@ -30,6 +30,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.chdir(BASE_DIR)
 
+APP_VERSION = "2.1-linux"
 PROFILE_DIR = "chrome_profile"
 LINKS_FILE = "vacancies_links.txt"
 APPLIED_FILE = "applied_links.txt"
@@ -167,12 +168,13 @@ def task_authorize(ui_callback):
             attempts += 1
         else:
             log_message("❌ Таймаут ожидания авторизации.")
-            ui_callback("auth_error")
+            ui_callback("auth_error", "Не дождались входа на hh.ru (около 3 минут). Попробуйте ещё раз.")
 
         driver.quit()
     except Exception as e:
-        log_message(f"❌ Ошибка авторизации: {e}")
-        ui_callback("auth_error")
+        err = getattr(e, "msg", None) or str(e)
+        log_message(f"❌ Ошибка авторизации: {err}")
+        ui_callback("auth_error", err)
     finally:
         is_running = False
         ui_callback("auth_finish")
@@ -401,9 +403,11 @@ def task_apply(cover_letter, ui_callback):
 class AppUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("HH.ru Automation Tool v2.0")
-        self.root.geometry("850x650")  # Уменьшена высота окна
-        self.root.minsize(800, 550)    # Уменьшен минимальный размер по высоте
+        self.root.title(f"HH.ru Automation Tool v{APP_VERSION}")
+        # Высота под экран, чтобы «Журнал событий» не обрезался
+        height = min(900, self.root.winfo_screenheight() - 80)
+        self.root.geometry(f"850x{height}")
+        self.root.minsize(800, 550)
 
         self.build_ui()
         self.update_stats()
@@ -542,6 +546,8 @@ class AppUI:
             messagebox.showinfo("Успех", "Авторизация подтверждена и сохранена!")
         elif event == "auth_error":
             self.set_auth_status("Ошибка авторизации ❌", "red")
+            if data:
+                messagebox.showerror("Ошибка авторизации", str(data)[:800])
         elif event == "auth_finish":
             self.btn_auth.config(state=tk.NORMAL)
         elif event == "auth_reset":

@@ -2,7 +2,6 @@ import os
 import sys
 import time
 import random
-import json
 import shutil
 import threading
 import queue
@@ -30,10 +29,11 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.chdir(BASE_DIR)
 
-APP_VERSION = "2.2-linux"
+APP_VERSION = "2.3-linux"
 PROFILE_DIR = "chrome_profile"
 LINKS_FILE = "vacancies_links.txt"
-APPLIED_FILE = "applied_links.txt"
+APPLIED_FILE = "applied_links.txt"          # отклик отправлен
+NOT_APPLIED_FILE = "not_applied_links.txt"  # не откликнулись: ссылка<TAB>причина
 KEYWORDS_FILE = "keywords.txt"
 COVER_LETTER_FILE = "cover_letter.txt"
 
@@ -42,6 +42,8 @@ MAX_RESPONSES_PER_RUN = 200
 SLEEP_BETWEEN_RESPONSES = 30
 SLEEP_AFTER_ERRORS = 15
 ERROR_LIMIT = 3
+CAPTCHA_WAIT_MINUTES = 30      # сколько ждать, пока пользователь пройдёт капчу
+CAPTCHA_RETRIES_PER_LINK = 3   # после стольких капч подряд вакансия остаётся в «Осталось»
 
 # Глобальные переменные для управления потоками
 is_running = False
@@ -49,6 +51,8 @@ log_queue = queue.Queue()
 ui_queue = queue.Queue()  # события из рабочих потоков -> главный поток Tk
 auth_done_event = threading.Event()  # пользователь нажал «Я вошёл»
 auth_waiting = False
+stop_event = threading.Event()     # кнопка «Остановить»
+captcha_event = threading.Event()  # кнопка «Капча пройдена»
 
 
 # ==========================================================
@@ -65,7 +69,8 @@ def load_lines(path):
     if not os.path.exists(path):
         return set()
     with open(path, "r", encoding="utf-8") as f:
-        return set(line.strip() for line in f if line.strip())
+        # В строке может быть "ссылка<TAB>причина" — берём только ссылку
+        return set(line.split("\t")[0].strip() for line in f if line.strip())
 
 
 def save_line(path, line):
@@ -231,24 +236,175 @@ def task_reset_auth(ui_callback):
         ui_callback("auth_reset")
 
 
+# ==========================================================
+# 🧩 РАБОТА СО СТРАНИЦЕЙ HH.RU
+# ==========================================================
+NBSP = " "
+
+
+def visible(driver, by, sel):
+    try:
+        return [e for e in driver.find_elements(by, sel) if e.is_displayed()]
+    except WebDriverException:
+        return []
+
+
+def visible_text(driver, *phrases):
+    """Видимые элементы, в тексте которых есть одна из фраз (неразрывные пробелы учитываются)."""
+    conds = " or ".join(f"contains(translate(text(), '{NBSP}', ' '), '{p}')" for p in phrases)
+    return visible(driver, By.XPATH, f"//*[{conds}]")
+
+
+def click(driver, el):
+    try:
+        el.click()
+    except WebDriverException:
+        driver.execute_script("arguments[0].click();", el)
+
+
+def has_captcha(driver):
+    return bool(visible_text(driver, "Пройдите капчу", "текст с картинки")
+                or visible(driver, By.CSS_SELECTOR, '[data-qa*="captcha"], img[src*="captcha"]'))
+
+
+def already_applied(driver):
+    return bool(visible_text(driver, "Вы откликнулись", "Резюме доставлено", "Отклик отправлен"))
+
+
+def wait_for_captcha(ui_callback):
+    """Пауза, пока пользователь сам проходит капчу в браузере. False — если остановили."""
+    captcha_event.clear()
+    ui_callback("captcha")
+    log_message("🧩 Капча! Пройдите её в окне браузера и нажмите «▶ Капча пройдена — продолжить».")
+    try:
+        if not captcha_event.wait(CAPTCHA_WAIT_MINUTES * 60):
+            log_message(f"⏰ Капча не пройдена за {CAPTCHA_WAIT_MINUTES} мин. Останавливаемся.")
+            stop_event.set()
+    finally:
+        ui_callback("captcha_done")
+    return not stop_event.is_set()
+
+
+def attach_cover_letter(driver, cover_letter):
+    """После отклика: «Приложить сопроводительное письмо», если такая кнопка есть."""
+    btns = visible_text(driver, "Приложить сопроводительное")
+    if not btns:
+        return None
+    try:
+        click(driver, btns[0])
+        time.sleep(random.uniform(1.0, 2.0))
+        if visible_text(driver, "уже прочитал"):
+            return "работодатель уже прочитал отклик — письмо не приложить"
+        areas = visible(driver, By.CSS_SELECTOR, "textarea")
+        if not areas:
+            return "поле для письма не появилось"
+        areas[0].clear()
+        areas[0].send_keys(cover_letter)
+        time.sleep(random.uniform(1.0, 2.0))
+        submit = (visible(driver, By.CSS_SELECTOR, '[data-qa="vacancy-response-letter-submit"]')
+                  or visible(driver, By.XPATH, "//button[contains(., 'Отправить')]"))
+        if not submit:
+            return "кнопка «Отправить» для письма не найдена"
+        click(driver, submit[0])
+        time.sleep(random.uniform(1.5, 2.5))
+        if visible_text(driver, "уже прочитал"):
+            return "работодатель уже прочитал отклик — письмо не приложить"
+        return "приложено"
+    except WebDriverException as e:
+        return f"ошибка: {e.msg}"
+
+
+def apply_one(driver, link, cover_letter):
+    """Возвращает (статус, пояснение): applied / already / not_applied / captcha."""
+    driver.get(link)
+    time.sleep(random.uniform(2.0, 4.0))
+    if has_captcha(driver):
+        return "captcha", ""
+    if already_applied(driver):
+        return "already", ""
+
+    btns = visible(driver, By.CSS_SELECTOR, '[data-qa="vacancy-response-link-top"]')
+    if not btns:
+        return "not_applied", "нет кнопки «Откликнуться» (отклик на сайте компании?)"
+    click(driver, btns[0])
+    time.sleep(random.uniform(1.5, 3.0))
+    if has_captcha(driver):
+        return "captcha", ""
+
+    for el in visible(driver, By.CSS_SELECTOR, '[data-qa="relocation-warning-confirm"]'):
+        click(driver, el)
+        time.sleep(random.uniform(1.0, 2.0))
+    if has_captcha(driver):
+        return "captcha", ""
+
+    if "vacancy_response" in driver.current_url and not already_applied(driver):
+        return "not_applied", "работодатель просит ответить на вопросы / пройти тест"
+
+    # Всплывающее окно отклика: вставляем письмо и отправляем
+    submit = visible(driver, By.CSS_SELECTOR, '[data-qa="vacancy-response-submit-popup"]')
+    if submit:
+        areas = visible(driver, By.CSS_SELECTOR, "textarea")
+        if not areas:
+            for t in visible(driver, By.CSS_SELECTOR, '[data-qa="vacancy-response-letter-toggle"]'):
+                click(driver, t)
+                time.sleep(1)
+            areas = visible(driver, By.CSS_SELECTOR, "textarea")
+        if len(areas) > 1 or visible(driver, By.CSS_SELECTOR, '[role="dialog"] input[type="radio"], [role="dialog"] input[type="checkbox"]'):
+            return "not_applied", "в форме отклика есть вопросы работодателя"
+        if areas:
+            areas[0].clear()
+            areas[0].send_keys(cover_letter)
+            time.sleep(random.uniform(1.0, 2.0))
+        click(driver, submit[0])
+        time.sleep(random.uniform(2.0, 3.0))
+        if has_captcha(driver):
+            return "captcha", ""
+        if visible(driver, By.CSS_SELECTOR, '[data-qa="vacancy-response-submit-popup"]'):
+            return "not_applied", "форма отклика не отправилась (обязательные поля?)"
+        if areas:
+            return "applied", "с письмом"
+        letter = attach_cover_letter(driver, cover_letter)
+        return "applied", f"письмо: {letter}" if letter else "без письма"
+
+    # Отклик ушёл сразу, без окна — пробуем приложить письмо
+    time.sleep(1)
+    if already_applied(driver) or visible_text(driver, "Приложить сопроводительное"):
+        letter = attach_cover_letter(driver, cover_letter)
+        return "applied", f"письмо: {letter}" if letter else "без письма"
+    return "not_applied", "неизвестная форма отклика"
+
+
+# ==========================================================
+# 🧠 ПОИСК И ОТКЛИКИ
+# ==========================================================
 def task_search(keywords, country_mode, ui_callback):
     global is_running
     if is_running: return
     is_running = True
+    stop_event.clear()
     ui_callback("search_start")
+    driver = None
+    current_run_links = set()
+    existing_links = load_lines(LINKS_FILE)
+
+    def save_new(after):
+        nonlocal existing_links
+        new_to_save = current_run_links - existing_links
+        if new_to_save:
+            with open(LINKS_FILE, "a", encoding="utf-8") as f:
+                for link in new_to_save:
+                    f.write(link + "\n")
+            existing_links |= new_to_save
+            log_message(f"💾 Сохранено {len(new_to_save)} новых ссылок {after}")
 
     try:
         driver = get_driver()
         if not check_auth(driver):
             log_message("⚠️ Сначала выполните авторизацию!")
             ui_callback("search_error", "Требуется авторизация")
-            is_running = False
-            driver.quit()
             return
 
-        applied_links = load_lines(APPLIED_FILE)
-        existing_links = load_lines(LINKS_FILE)
-        current_run_links = set()
+        known = load_lines(APPLIED_FILE) | load_lines(NOT_APPLIED_FILE)
 
         # 1. Получаем страны
         log_message("🌍 Загрузка списка стран из API hh.ru...")
@@ -267,21 +423,27 @@ def task_search(keywords, country_mode, ui_callback):
 
         # 3. Поиск
         for kw_idx, keyword in enumerate(keywords, 1):
+            if stop_event.is_set(): break
             log_message(f"🔎 Ключевое слово: «{keyword}» ({kw_idx}/{len(keywords)})")
 
             for c_idx, country in enumerate(countries, 1):
+                if stop_event.is_set(): break
                 log_message(f"🚀 [{c_idx}/{len(countries)}] Страна: {country['name']}")
 
-                for page in range(MAX_PAGES_PER_COUNTRY):
+                page = 0
+                while page < MAX_PAGES_PER_COUNTRY and not stop_event.is_set():
                     url = f"https://hh.ru/search/vacancy?text={keyword}&search_field=name&area={country['id']}&order_by=relevance&items_on_page=50"
                     if page > 0: url += f"&page={page}"
 
                     driver.get(url)
                     time.sleep(random.uniform(2.0, 4.0))
+                    if has_captcha(driver):
+                        if not wait_for_captcha(ui_callback): break
+                        continue  # та же страница ещё раз
 
                     # Скролл
                     last_height = driver.execute_script("return document.body.scrollHeight")
-                    while True:
+                    while not stop_event.is_set():
                         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
                         time.sleep(1.5)
                         new_height = driver.execute_script("return document.body.scrollHeight")
@@ -293,35 +455,40 @@ def task_search(keywords, country_mode, ui_callback):
                     new_found = 0
                     for card in cards:
                         link = card.get_attribute("href")
-                        if link and link not in applied_links and link not in existing_links and link not in current_run_links:
+                        if link and link not in known and link not in existing_links and link not in current_run_links:
                             current_run_links.add(link)
                             new_found += 1
 
                     log_message(f"   стр. {page + 1}: новых {new_found} (всего в памяти: {len(current_run_links)})")
                     if new_found == 0: break
-                    time.sleep(random.uniform(1.0, 2.0))
+                    page += 1
+                    if stop_event.wait(random.uniform(1.0, 2.0)): break
 
             # Сохранение после каждого ключевого слова
-            new_to_save = current_run_links - existing_links
-            if new_to_save:
-                with open(LINKS_FILE, "a", encoding="utf-8") as f:
-                    for link in new_to_save:
-                        f.write(link + "\n")
-                existing_links |= new_to_save
-                log_message(f"💾 Сохранено {len(new_to_save)} новых ссылок после «{keyword}»")
+            save_new(f"после «{keyword}»")
 
-        log_message(f"🏁 Поиск завершен! Всего собрано: {len(current_run_links | existing_links)}")
-        ui_callback("search_finish", len(current_run_links | existing_links))
+        total = len(existing_links | current_run_links)
+        if stop_event.is_set():
+            log_message(f"⏹ Поиск остановлен. Всего в базе: {total}")
+            ui_callback("stopped", f"Поиск остановлен. Всего в базе: {total} вакансий.")
+        else:
+            log_message(f"🏁 Поиск завершен! Всего собрано: {total}")
+            ui_callback("search_finish", total)
 
     except Exception as e:
         log_message(f"❌ Ошибка поиска: {e}")
         ui_callback("search_error", str(e))
     finally:
-        is_running = False
         try:
-            driver.quit()
-        except:
+            save_new("(при остановке)")
+        except Exception:
             pass
+        is_running = False
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
         ui_callback("cleanup")
 
 
@@ -329,104 +496,111 @@ def task_apply(cover_letter, ui_callback):
     global is_running
     if is_running: return
     is_running = True
+    stop_event.clear()
     ui_callback("apply_start")
+    driver = None
 
     try:
+        all_links = list(load_lines(LINKS_FILE))
+        applied_links = load_lines(APPLIED_FILE)
+        not_applied_links = load_lines(NOT_APPLIED_FILE)
+        links_to_process = [l for l in all_links if l not in applied_links and l not in not_applied_links]
+
+        log_message(f"🔗 К обработке: {len(links_to_process)} (откликнуто: {len(applied_links)}, не откликнуто: {len(not_applied_links)})")
+
+        if not all_links:
+            log_message("ℹ️ Список вакансий пуст — сначала запустите поиск вакансий.")
+            ui_callback("apply_error", "Список вакансий пуст.\nСначала нажмите «🚀 Запустить поиск вакансий».")
+            return
+        if not links_to_process:
+            log_message("✅ Все собранные вакансии уже обработаны!")
+            ui_callback("apply_finish", (0, 0))
+            return
+
         driver = get_driver()
         if not check_auth(driver):
             log_message("⚠️ Сначала выполните авторизацию!")
             ui_callback("apply_error", "Требуется авторизация")
-            is_running = False
-            driver.quit()
-            return
-
-        all_links = list(load_lines(LINKS_FILE))
-        applied_links = load_lines(APPLIED_FILE)
-        links_to_process = [link for link in all_links if link not in applied_links]
-
-        log_message(f"🔗 К обработке: {len(links_to_process)} (уже откликнулись: {len(applied_links)})")
-
-        if not links_to_process:
-            log_message("✅ Все собранные вакансии уже обработаны!")
-            ui_callback("apply_finish", 0)
-            is_running = False
-            driver.quit()
             return
 
         error_count = 0
         responses_sent = 0
+        skipped = 0
+        captcha_tries = {}
+        i = 0
 
-        for i, link in enumerate(links_to_process, 1):
+        while i < len(links_to_process):
+            if stop_event.is_set():
+                break
             if responses_sent >= MAX_RESPONSES_PER_RUN:
                 log_message(f"🏁 Достигнут лимит в {MAX_RESPONSES_PER_RUN} откликов.")
                 break
 
-            log_message(f"🔍 {i}/{len(links_to_process)} — Обработка...")
+            link = links_to_process[i]
+            log_message(f"🔍 {i + 1}/{len(links_to_process)} — {link}")
             try:
-                driver.get(link)
-                time.sleep(random.uniform(2.0, 4.0))
-
-                if driver.find_elements(By.XPATH, '//div[contains(text(), "Вы\xa0откликнулись")]'):
-                    log_message("✅ Уже откликнулись ранее (статус на странице).")
-                    save_line(APPLIED_FILE, link)
-                    responses_sent += 1
-                    continue
-
-                try:
-                    driver.find_element(By.CSS_SELECTOR, '[data-qa="vacancy-response-link-top"]').click()
-                    time.sleep(random.uniform(1.5, 3.0))
-                except NoSuchElementException:
-                    log_message("⚠️ Кнопка 'Откликнуться' не найдена. Пропускаем.")
-                    save_line(APPLIED_FILE, link)
-                    continue
-
-                try:
-                    driver.find_element(By.CSS_SELECTOR, '[data-qa="relocation-warning-confirm"]').click()
-                    time.sleep(random.uniform(1.0, 2.0))
-                except NoSuchElementException:
-                    pass
-
-                try:
-                    textarea = driver.find_element(By.CSS_SELECTOR, "textarea")
-                    submit_btn = driver.find_element(By.CSS_SELECTOR, '[data-qa="vacancy-response-submit-popup"]')
-                    textarea.clear()
-                    textarea.send_keys(cover_letter)
-                    time.sleep(random.uniform(1.0, 2.0))
-                    submit_btn.click()
-                    log_message("✅ Отклик успешно отправлен!")
-                    save_line(APPLIED_FILE, link)
-                    responses_sent += 1
-                except NoSuchElementException:
-                    log_message("📎 Нет поля для ввода. Фиксируем как обработанное.")
-                    save_line(APPLIED_FILE, link)
-                    responses_sent += 1
-
+                status, note = apply_one(driver, link, cover_letter)
                 error_count = 0
-                if responses_sent >= MAX_RESPONSES_PER_RUN: break
-
-                log_message(f"💤 Пауза {SLEEP_BETWEEN_RESPONSES} сек...")
-                time.sleep(SLEEP_BETWEEN_RESPONSES)
-
             except WebDriverException as e:
-                log_message(f"🚫 Ошибка WebDriver: {e}")
+                log_message(f"🚫 Ошибка WebDriver: {e.msg}")
+                if "invalid session" in str(e) or "no such window" in str(e):
+                    raise RuntimeError("Окно браузера закрыто.")
                 error_count += 1
                 if error_count >= ERROR_LIMIT:
                     log_message(f"⛔ Лимит ошибок. Пауза {SLEEP_AFTER_ERRORS} сек...")
-                    time.sleep(SLEEP_AFTER_ERRORS)
+                    stop_event.wait(SLEEP_AFTER_ERRORS)
                     error_count = 0
+                i += 1
+                continue
 
-        log_message(f"🏁 Готово. Отправлено: {responses_sent} откликов.")
-        ui_callback("apply_finish", responses_sent)
+            if status == "captcha":
+                captcha_tries[link] = captcha_tries.get(link, 0) + 1
+                if captcha_tries[link] > CAPTCHA_RETRIES_PER_LINK:
+                    log_message("⏭ Капча повторяется — вакансия остаётся в «Осталось», идём дальше.")
+                    i += 1
+                    continue
+                if not wait_for_captcha(ui_callback):
+                    break
+                log_message("🔁 Повторяем отклик на эту же вакансию...")
+                continue  # i не увеличиваем — та же вакансия сразу ещё раз
+
+            i += 1
+            if status == "already":
+                log_message("✅ Уже откликнулись ранее (статус на странице).")
+                save_line(APPLIED_FILE, link)
+                continue
+            if status == "not_applied":
+                log_message(f"🚫 Не откликнулись: {note}")
+                save_line(NOT_APPLIED_FILE, f"{link}\t{note}")
+                skipped += 1
+                stop_event.wait(random.uniform(3.0, 6.0))
+                continue
+
+            log_message(f"✅ Отклик отправлен ({note})")
+            save_line(APPLIED_FILE, link)
+            responses_sent += 1
+            if responses_sent >= MAX_RESPONSES_PER_RUN or i >= len(links_to_process):
+                continue
+            log_message(f"💤 Пауза {SLEEP_BETWEEN_RESPONSES} сек...")
+            stop_event.wait(SLEEP_BETWEEN_RESPONSES)
+
+        if stop_event.is_set():
+            log_message(f"⏹ Остановлено. Отправлено: {responses_sent}, не откликнулись: {skipped}.")
+            ui_callback("stopped", f"Отклики остановлены.\nОтправлено: {responses_sent}\nНе откликнулись: {skipped}")
+        else:
+            log_message(f"🏁 Готово. Отправлено: {responses_sent}, не откликнулись: {skipped}.")
+            ui_callback("apply_finish", (responses_sent, skipped))
 
     except Exception as e:
         log_message(f"❌ Ошибка откликов: {e}")
         ui_callback("apply_error", str(e))
     finally:
         is_running = False
-        try:
-            driver.quit()
-        except:
-            pass
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
         ui_callback("cleanup")
 
 
@@ -459,6 +633,9 @@ class AppUI:
 
         self.btn_reset = ttk.Button(frame_auth, text="🗑️ Сбросить авторизацию", command=self.on_reset_auth)
         self.btn_reset.pack(side=tk.LEFT, padx=5)
+
+        self.btn_stop = ttk.Button(frame_auth, text="⏹ Остановить", command=self.on_stop, state=tk.DISABLED)
+        self.btn_stop.pack(side=tk.LEFT, padx=5)
 
         self.lbl_auth_status = tk.Label(frame_auth, text="Статус: Не проверено", font=("Arial", 10, "bold"), fg="gray")
         self.lbl_auth_status.pack(side=tk.RIGHT, padx=5)
@@ -512,6 +689,9 @@ class AppUI:
         self.btn_apply = ttk.Button(frame_apply, text="💼 Запустить автоотклики", command=self.on_apply)
         self.btn_apply.pack(fill=tk.X, pady=5)
 
+        self.btn_captcha = ttk.Button(frame_apply, text="▶ Капча пройдена — продолжить", command=self.on_captcha_done, state=tk.DISABLED)
+        self.btn_captcha.pack(fill=tk.X, pady=(0, 5))
+
         # --- 4. Статистика ---
         frame_stats = ttk.LabelFrame(self.root, text="Статистика", padding=10)
         frame_stats.pack(fill=tk.X, padx=10, pady=5)
@@ -525,8 +705,14 @@ class AppUI:
         self.lbl_stat_applied = tk.Label(stats_grid, text="✅ Откликнуто: 0", font=("Arial", 11, "bold"), fg="green")
         self.lbl_stat_applied.grid(row=0, column=1, padx=20, pady=5, sticky=tk.W)
 
+        self.lbl_stat_not_applied = tk.Label(stats_grid, text="🚫 Не откликнуто: 0", font=("Arial", 11, "bold"), fg="red")
+        self.lbl_stat_not_applied.grid(row=0, column=2, padx=20, pady=5, sticky=tk.W)
+
         self.lbl_stat_pending = tk.Label(stats_grid, text="⏳ Осталось: 0", font=("Arial", 11, "bold"), fg="orange")
-        self.lbl_stat_pending.grid(row=0, column=2, padx=20, pady=5, sticky=tk.W)
+        self.lbl_stat_pending.grid(row=0, column=3, padx=20, pady=5, sticky=tk.W)
+
+        self.lbl_captcha = tk.Label(frame_stats, text="", font=("Arial", 11, "bold"), fg="red")
+        self.lbl_captcha.pack(anchor=tk.W)
 
         # --- 5. Логи ---
         frame_log = ttk.LabelFrame(self.root, text="Журнал событий", padding=10)
@@ -561,10 +747,12 @@ class AppUI:
     def update_stats(self):
         all_links = load_lines(LINKS_FILE)
         applied_links = load_lines(APPLIED_FILE)
-        pending = all_links - applied_links
+        not_applied_links = load_lines(NOT_APPLIED_FILE) - applied_links
+        pending = all_links - applied_links - not_applied_links
 
         self.lbl_stat_total.config(text=f"📂 Всего собрано: {len(all_links)}")
         self.lbl_stat_applied.config(text=f"✅ Откликнуто: {len(applied_links)}")
+        self.lbl_stat_not_applied.config(text=f"🚫 Не откликнуто: {len(not_applied_links)}")
         self.lbl_stat_pending.config(text=f"⏳ Осталось: {len(pending)}")
 
     def set_auth_status(self, text, color):
@@ -602,12 +790,25 @@ class AppUI:
             self.btn_apply.config(state=tk.DISABLED)
             self.btn_auth.config(state=tk.DISABLED)
             self.btn_reset.config(state=tk.DISABLED)
+            self.btn_stop.config(state=tk.NORMAL)
+        elif event == "captcha":
+            self.btn_captcha.config(state=tk.NORMAL)
+            self.lbl_captcha.config(text="🧩 Капча! Пройдите её в окне браузера и нажмите «▶ Капча пройдена — продолжить»")
+            self.root.bell()
+            self.root.deiconify()
+            self.root.lift()
+        elif event == "captcha_done":
+            self.btn_captcha.config(state=tk.DISABLED)
+            self.lbl_captcha.config(text="")
+        elif event == "stopped":
+            messagebox.showinfo("Остановлено", str(data))
         elif event == "search_finish":
             messagebox.showinfo("Готово", f"Поиск завершен. Всего в базе: {data} вакансий.")
         elif event == "search_error":
             messagebox.showerror("Ошибка поиска", str(data))
         elif event == "apply_finish":
-            messagebox.showinfo("Готово", f"Отклики завершены. Отправлено за этот запуск: {data}")
+            sent, skipped = data
+            messagebox.showinfo("Готово", f"Отклики завершены.\nОтправлено за этот запуск: {sent}\nНе откликнулись: {skipped}")
         elif event == "apply_error":
             messagebox.showerror("Ошибка откликов", str(data))
         elif event == "cleanup":
@@ -615,6 +816,9 @@ class AppUI:
             self.btn_apply.config(state=tk.NORMAL)
             self.btn_auth.config(state=tk.NORMAL)
             self.btn_reset.config(state=tk.NORMAL)
+            self.btn_stop.config(state=tk.DISABLED, text="⏹ Остановить")
+            self.btn_captcha.config(state=tk.DISABLED)
+            self.lbl_captcha.config(text="")
             self.update_stats()
 
     def post_callback(self, event, data=None):
@@ -627,6 +831,15 @@ class AppUI:
             auth_done_event.set()  # кнопка в режиме «Я вошёл»
             return
         threading.Thread(target=task_authorize, args=(self.post_callback,), daemon=True).start()
+
+    def on_stop(self):
+        log_message("⏹ Останавливаем после текущего шага...")
+        self.btn_stop.config(state=tk.DISABLED, text="⏹ Останавливаем...")
+        stop_event.set()
+        captcha_event.set()  # снимаем ожидание капчи
+
+    def on_captcha_done(self):
+        captcha_event.set()
 
     def on_reset_auth(self):
         threading.Thread(target=task_reset_auth, args=(self.post_callback,), daemon=True).start()
@@ -665,7 +878,7 @@ class AppUI:
 # ==========================================================
 if __name__ == "__main__":
     # Создаем пустые файлы при первом запуске, чтобы избежать ошибок
-    for f in [LINKS_FILE, APPLIED_FILE, KEYWORDS_FILE]:
+    for f in [LINKS_FILE, APPLIED_FILE, NOT_APPLIED_FILE, KEYWORDS_FILE]:
         if not os.path.exists(f):
             open(f, "w", encoding="utf-8").close()
 

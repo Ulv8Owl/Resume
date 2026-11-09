@@ -5,6 +5,10 @@ import random
 import shutil
 import threading
 import queue
+import struct
+import subprocess
+import tempfile
+import wave
 import requests
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
@@ -29,13 +33,14 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.chdir(BASE_DIR)
 
-APP_VERSION = "2.3-linux"
+APP_VERSION = "2.4-linux"
 PROFILE_DIR = "chrome_profile"
 LINKS_FILE = "vacancies_links.txt"
 APPLIED_FILE = "applied_links.txt"          # отклик отправлен
 NOT_APPLIED_FILE = "not_applied_links.txt"  # не откликнулись: ссылка<TAB>причина
 KEYWORDS_FILE = "keywords.txt"
 COVER_LETTER_FILE = "cover_letter.txt"
+MODE_FILE = "captcha_mode.txt"
 
 MAX_PAGES_PER_COUNTRY = 40
 MAX_RESPONSES_PER_RUN = 200
@@ -43,7 +48,13 @@ SLEEP_BETWEEN_RESPONSES = 30
 SLEEP_AFTER_ERRORS = 15
 ERROR_LIMIT = 3
 CAPTCHA_WAIT_MINUTES = 30      # сколько ждать, пока пользователь пройдёт капчу
-CAPTCHA_RETRIES_PER_LINK = 3   # после стольких капч подряд вакансия остаётся в «Осталось»
+CAPTCHA_RETRIES_PER_LINK = 3   # ручной режим: после стольких капч на одной вакансии она остаётся в «Осталось»
+AUTO_CAPTCHA_STREAK = 3        # автономный режим: столько капч подряд -> перерыв
+AUTO_CAPTCHA_COOLDOWN_MIN = 15 # длина перерыва; если после него снова серия капч — остановка
+CAPTCHA_SOUND_REPEAT_SEC = 60  # ручной режим: повтор звука, пока капча не пройдена
+
+MODE_MANUAL = "Ручной"
+MODE_AUTO = "Автономный"
 
 # Глобальные переменные для управления потоками
 is_running = False
@@ -53,6 +64,9 @@ auth_done_event = threading.Event()  # пользователь нажал «Я 
 auth_waiting = False
 stop_event = threading.Event()     # кнопка «Остановить»
 captcha_event = threading.Event()  # кнопка «Капча пройдена»
+captcha_mode = MODE_MANUAL         # меняется переключателем в окне, читается при капче
+captcha_streak = 0                 # автономный режим: капч подряд
+captcha_cooldowns = 0              # автономный режим: перерывов подряд
 
 
 # ==========================================================
@@ -100,6 +114,20 @@ def load_cover_letter():
         return default_cl
     with open(COVER_LETTER_FILE, "r", encoding="utf-8") as f:
         return f.read()
+
+
+def load_mode():
+    try:
+        with open(MODE_FILE, "r", encoding="utf-8") as f:
+            mode = f.read().strip()
+        return mode if mode in (MODE_MANUAL, MODE_AUTO) else MODE_MANUAL
+    except OSError:
+        return MODE_MANUAL
+
+
+def save_mode(mode):
+    with open(MODE_FILE, "w", encoding="utf-8") as f:
+        f.write(mode)
 
 
 def save_cover_letter(text):
@@ -272,7 +300,7 @@ def already_applied(driver):
 
 
 def wait_for_captcha(ui_callback):
-    """Пауза, пока пользователь сам проходит капчу в браузере. False — если остановили."""
+    """Ручной режим: пауза, пока пользователь сам проходит капчу в браузере. False — если остановили."""
     captcha_event.clear()
     ui_callback("captcha")
     log_message("🧩 Капча! Пройдите её в окне браузера и нажмите «▶ Капча пройдена — продолжить».")
@@ -283,6 +311,33 @@ def wait_for_captcha(ui_callback):
     finally:
         ui_callback("captcha_done")
     return not stop_event.is_set()
+
+
+def reset_captcha_streak():
+    global captcha_streak, captcha_cooldowns
+    captcha_streak = 0
+    captcha_cooldowns = 0
+
+
+def handle_captcha(ui_callback):
+    """Что делать при капче: "retry" — повторить, "skip" — пропустить, "stop" — остановиться."""
+    global captcha_streak, captcha_cooldowns
+    if captcha_mode == MODE_MANUAL:
+        return "retry" if wait_for_captcha(ui_callback) else "stop"
+
+    captcha_streak += 1
+    log_message(f"🧩 Капча — пропускаем (автономный режим, подряд: {captcha_streak}).")
+    if captcha_streak >= AUTO_CAPTCHA_STREAK:
+        if captcha_cooldowns >= 1:
+            log_message("⛔ Капчи идут подряд и после перерыва — останавливаемся, чтобы не рисковать аккаунтом.")
+            stop_event.set()
+            return "stop"
+        captcha_cooldowns += 1
+        captcha_streak = 0
+        log_message(f"☕ {AUTO_CAPTCHA_STREAK} капчи подряд — перерыв {AUTO_CAPTCHA_COOLDOWN_MIN} мин.")
+        if stop_event.wait(AUTO_CAPTCHA_COOLDOWN_MIN * 60):
+            return "stop"
+    return "skip"
 
 
 def attach_cover_letter(driver, cover_letter):
@@ -382,6 +437,7 @@ def task_search(keywords, country_mode, ui_callback):
     if is_running: return
     is_running = True
     stop_event.clear()
+    reset_captcha_streak()
     ui_callback("search_start")
     driver = None
     current_run_links = set()
@@ -438,8 +494,11 @@ def task_search(keywords, country_mode, ui_callback):
                     driver.get(url)
                     time.sleep(random.uniform(2.0, 4.0))
                     if has_captcha(driver):
-                        if not wait_for_captcha(ui_callback): break
-                        continue  # та же страница ещё раз
+                        action = handle_captcha(ui_callback)
+                        if action == "retry":
+                            continue  # та же страница ещё раз
+                        break  # skip — следующая страна, stop — выходим по stop_event
+                    reset_captcha_streak()
 
                     # Скролл
                     last_height = driver.execute_script("return document.body.scrollHeight")
@@ -497,6 +556,7 @@ def task_apply(cover_letter, ui_callback):
     if is_running: return
     is_running = True
     stop_event.clear()
+    reset_captcha_streak()
     ui_callback("apply_start")
     driver = None
 
@@ -555,15 +615,20 @@ def task_apply(cover_letter, ui_callback):
 
             if status == "captcha":
                 captcha_tries[link] = captcha_tries.get(link, 0) + 1
-                if captcha_tries[link] > CAPTCHA_RETRIES_PER_LINK:
+                if captcha_mode == MODE_MANUAL and captcha_tries[link] > CAPTCHA_RETRIES_PER_LINK:
                     log_message("⏭ Капча повторяется — вакансия остаётся в «Осталось», идём дальше.")
                     i += 1
                     continue
-                if not wait_for_captcha(ui_callback):
+                action = handle_captcha(ui_callback)
+                if action == "stop":
                     break
+                if action == "skip":
+                    i += 1  # вакансия не помечается и остаётся в «Осталось»
+                    continue
                 log_message("🔁 Повторяем отклик на эту же вакансию...")
                 continue  # i не увеличиваем — та же вакансия сразу ещё раз
 
+            reset_captcha_streak()
             i += 1
             if status == "already":
                 log_message("✅ Уже откликнулись ранее (статус на странице).")
@@ -602,6 +667,76 @@ def task_apply(cover_letter, ui_callback):
             except Exception:
                 pass
         ui_callback("cleanup")
+
+
+# ==========================================================
+# 🔔 УВЕДОМЛЕНИЕ И ЗВУК ПРИ КАПЧЕ
+# ==========================================================
+def system_env():
+    """Окружение для системных программ: PyInstaller подменяет LD_LIBRARY_PATH своими библиотеками."""
+    env = dict(os.environ)
+    if getattr(sys, "frozen", False):
+        orig = env.get("LD_LIBRARY_PATH_ORIG")
+        if orig:
+            env["LD_LIBRARY_PATH"] = orig
+        else:
+            env.pop("LD_LIBRARY_PATH", None)
+    return env
+
+
+def run_detached(cmd):
+    try:
+        subprocess.Popen(cmd, env=system_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except OSError:
+        return False
+
+
+_alarm_path = None
+
+
+def alarm_file():
+    """Громкий сигнал тревоги (WAV), создаётся один раз."""
+    global _alarm_path
+    if _alarm_path and os.path.exists(_alarm_path):
+        return _alarm_path
+    rate = 44100
+    frames = bytearray()
+    for _ in range(4):
+        for freq in (1000, 1500):
+            for n in range(int(rate * 0.18)):
+                # меандр на полной громкости — слышно даже на тихих колонках
+                val = 32000 if (n * freq * 2 // rate) % 2 == 0 else -32000
+                frames += struct.pack("<h", val)
+        frames += b"\x00\x00" * int(rate * 0.08)
+    path = os.path.join(tempfile.gettempdir(), "hhautoapply_alarm.wav")
+    with wave.open(path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(bytes(frames))
+    _alarm_path = path
+    return path
+
+
+def play_alarm():
+    path = alarm_file()
+    for player in ("pw-play", "paplay", "aplay"):
+        if shutil.which(player):
+            if run_detached([player, path]):
+                return True
+    return False
+
+
+def desktop_notify(text):
+    if not shutil.which("notify-send"):
+        return False
+    try:
+        r = subprocess.run(["notify-send", "-u", "critical", "-a", "HHAutoApply", text],
+                           env=system_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+        return r.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 # ==========================================================
@@ -685,6 +820,18 @@ class AppUI:
         self.text_cover_letter = scrolledtext.ScrolledText(frame_apply, height=4, font=("Arial", 10))
         self.text_cover_letter.pack(fill=tk.X, pady=5)
         self.text_cover_letter.insert(tk.END, load_cover_letter())
+
+        frame_mode = ttk.Frame(frame_apply)
+        frame_mode.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(frame_mode, text="Режим при капче:").pack(side=tk.LEFT)
+        self.mode_var = tk.StringVar(value=load_mode())
+        ttk.Radiobutton(frame_mode, text="Ручной — уведомление и звук", value=MODE_MANUAL,
+                        variable=self.mode_var, command=self.on_mode).pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(frame_mode, text="Автономный — пропускать капчи", value=MODE_AUTO,
+                        variable=self.mode_var, command=self.on_mode).pack(side=tk.LEFT, padx=5)
+        self.on_mode()
+        self.captcha_alarm_on = False
+        self.captcha_popup = None
 
         self.btn_apply = ttk.Button(frame_apply, text="💼 Запустить автоотклики", command=self.on_apply)
         self.btn_apply.pack(fill=tk.X, pady=5)
@@ -770,20 +917,16 @@ class AppUI:
             self.btn_auth.config(state=tk.DISABLED)
             self.set_auth_status("Проверяем вход...", "orange")
         elif event == "auth_not_yet":
-            messagebox.showwarning("Вход не выполнен", "hh.ru показывает, что вы не вошли.\nВойдите в открытом окне браузера и снова нажмите «Я вошёл».")
+            self.set_auth_status("Вход не выполнен — войдите и нажмите «Я вошёл»", "red")
         elif event == "auth_success":
             self.set_auth_status("Авторизован ✅", "green")
-            messagebox.showinfo("Успех", "Авторизация подтверждена и сохранена!")
         elif event == "auth_error":
-            self.set_auth_status("Ошибка авторизации ❌", "red")
-            if data:
-                messagebox.showerror("Ошибка авторизации", str(data)[:800])
+            self.set_auth_status("Ошибка авторизации ❌ (см. журнал)", "red")
         elif event == "auth_finish":
             self.btn_auth.config(text="🔑 Авторизоваться", state=tk.NORMAL)
             self.btn_reset.config(state=tk.NORMAL)
         elif event == "auth_reset":
             self.set_auth_status("Не авторизован (сброшено)", "red")
-            messagebox.showinfo("Успех", "Сессия браузера успешно удалена.")
 
         elif event in ("search_start", "apply_start"):
             self.btn_search.config(state=tk.DISABLED)
@@ -793,24 +936,12 @@ class AppUI:
             self.btn_stop.config(state=tk.NORMAL)
         elif event == "captcha":
             self.btn_captcha.config(state=tk.NORMAL)
-            self.lbl_captcha.config(text="🧩 Капча! Пройдите её в окне браузера и нажмите «▶ Капча пройдена — продолжить»")
-            self.root.bell()
-            self.root.deiconify()
-            self.root.lift()
+            self.lbl_captcha.config(text="КАПЧА")
+            self.start_captcha_alarm()
         elif event == "captcha_done":
             self.btn_captcha.config(state=tk.DISABLED)
             self.lbl_captcha.config(text="")
-        elif event == "stopped":
-            messagebox.showinfo("Остановлено", str(data))
-        elif event == "search_finish":
-            messagebox.showinfo("Готово", f"Поиск завершен. Всего в базе: {data} вакансий.")
-        elif event == "search_error":
-            messagebox.showerror("Ошибка поиска", str(data))
-        elif event == "apply_finish":
-            sent, skipped = data
-            messagebox.showinfo("Готово", f"Отклики завершены.\nОтправлено за этот запуск: {sent}\nНе откликнулись: {skipped}")
-        elif event == "apply_error":
-            messagebox.showerror("Ошибка откликов", str(data))
+            self.stop_captcha_alarm()
         elif event == "cleanup":
             self.btn_search.config(state=tk.NORMAL)
             self.btn_apply.config(state=tk.NORMAL)
@@ -819,7 +950,51 @@ class AppUI:
             self.btn_stop.config(state=tk.DISABLED, text="⏹ Остановить")
             self.btn_captcha.config(state=tk.DISABLED)
             self.lbl_captcha.config(text="")
+            self.stop_captcha_alarm()
             self.update_stats()
+
+    # --- Капча: уведомление «КАПЧА» + громкий звук, повтор звука до прохождения ---
+    def start_captcha_alarm(self):
+        self.captcha_alarm_on = True
+        if not desktop_notify("КАПЧА"):
+            self.show_captcha_popup()  # нет notify-send — своё окно поверх всех
+        self.captcha_beep()
+
+    def captcha_beep(self):
+        if not self.captcha_alarm_on:
+            return
+        if not play_alarm():
+            for k in range(5):
+                self.root.after(k * 300, self.root.bell)
+        self.root.after(CAPTCHA_SOUND_REPEAT_SEC * 1000, self.captcha_beep)
+
+    def stop_captcha_alarm(self):
+        self.captcha_alarm_on = False
+        if self.captcha_popup is not None:
+            self.captcha_popup.destroy()
+            self.captcha_popup = None
+
+    def show_captcha_popup(self):
+        if self.captcha_popup is not None:
+            return
+        win = tk.Toplevel(self.root)
+        win.title("КАПЧА")
+        win.attributes("-topmost", True)
+        tk.Label(win, text="КАПЧА", font=("Arial", 48, "bold"), fg="white", bg="red",
+                 padx=40, pady=20).pack()
+        win.bind("<Button-1>", lambda e: self.stop_captcha_popup_only())
+        win.protocol("WM_DELETE_WINDOW", self.stop_captcha_popup_only)
+        self.captcha_popup = win
+
+    def stop_captcha_popup_only(self):
+        if self.captcha_popup is not None:
+            self.captcha_popup.destroy()
+            self.captcha_popup = None
+
+    def on_mode(self):
+        global captcha_mode
+        captcha_mode = self.mode_var.get()
+        save_mode(captcha_mode)
 
     def post_callback(self, event, data=None):
         # Tk нельзя трогать из рабочих потоков — передаём событие в главный поток
@@ -860,7 +1035,7 @@ class AppUI:
     def on_search(self):
         kws = list(self.listbox_kw.get(0, tk.END))
         if not kws:
-            messagebox.showwarning("Внимание", "Добавьте хотя бы одно ключевое слово.")
+            log_message("⚠️ Добавьте хотя бы одно ключевое слово.")
             return
 
         country_mode = self.country_var.get()

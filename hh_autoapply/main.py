@@ -33,7 +33,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 os.chdir(BASE_DIR)
 
-APP_VERSION = "2.4-linux"
+APP_VERSION = "2.5-linux"
 PROFILE_DIR = "chrome_profile"
 LINKS_FILE = "vacancies_links.txt"
 APPLIED_FILE = "applied_links.txt"          # отклик отправлен
@@ -369,6 +369,103 @@ def attach_cover_letter(driver, cover_letter):
         return f"ошибка: {e.msg}"
 
 
+# Разбор формы с вопросами работодателя (выполняется в браузере)
+ANALYZE_FORM_JS = r"""
+const root = arguments[0] || document.body;
+const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+const fields = [...root.querySelectorAll(
+    'textarea, input[type=text], input:not([type]), input[type=number], input[type=email], input[type=tel], [contenteditable=true]'
+)].filter(vis);
+const isLetter = e => /letter/i.test((e.getAttribute('data-qa') || '') + ' ' + (e.getAttribute('name') || ''));
+let letter = fields.find(isLetter) || null;
+if (!letter && fields.length === 1 && fields[0].tagName === 'TEXTAREA') letter = fields[0];
+const questions = fields.filter(e => e !== letter).length;
+
+const groups = {};
+root.querySelectorAll('input[type=radio]').forEach(r => {
+    const key = r.name || r.id || Math.random();
+    (groups[key] = groups[key] || []).push(r);
+});
+const labelText = r => {
+    const l = r.closest('label') || (r.id && root.querySelector('label[for="' + CSS.escape(r.id) + '"]'));
+    const t = l ? l.innerText : (r.parentElement ? r.parentElement.innerText : '');
+    return (t || r.value || '').trim().toLowerCase();
+};
+const plan = [];
+let missing = 0, total = 0;
+for (const rs of Object.values(groups)) {
+    if (rs.some(r => r.checked)) continue;  // уже выбрано (например, резюме) — не трогаем
+    total++;
+    const yes = rs.find(r => /^(да|yes)([^а-яёa-z]|$)/i.test(labelText(r)));
+    if (yes) plan.push(yes); else missing++;
+}
+return {questions: questions, missing: missing, total: total, plan: plan, letter: letter};
+"""
+
+
+def analyze_form(driver, root=None):
+    return driver.execute_script(ANALYZE_FORM_JS, root)
+
+
+def answer_yes(driver, radios):
+    """Отмечает варианты «Да». False — если какой-то не отметился."""
+    for r in radios:
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", r)
+        time.sleep(random.uniform(0.3, 0.8))
+        driver.execute_script("arguments[0].click();", r)
+        if not r.is_selected():
+            label = driver.execute_script(
+                "return arguments[0].closest('label') || document.querySelector('label[for=\"' + arguments[0].id + '\"]');", r)
+            if label:
+                driver.execute_script("arguments[0].click();", label)
+        if not r.is_selected():
+            return False
+    return True
+
+
+def fill(el, text):
+    el.clear()
+    el.send_keys(text)
+
+
+def test_skip_reason(form):
+    if form["questions"]:
+        return "в тесте работодателя есть поля для ввода"
+    if form["missing"]:
+        return "в тесте есть вопросы без варианта «Да»"
+    return None
+
+
+def apply_test_page(driver, cover_letter):
+    """Отдельная страница с вопросами работодателя (…/vacancy_response)."""
+    radios = driver.find_elements(By.CSS_SELECTOR, "input[type=radio]")
+    root = driver.execute_script("return arguments[0] ? (arguments[0].closest('form') || document.body) : document.body;",
+                                 radios[0] if radios else None)
+    form = analyze_form(driver, root)
+    reason = test_skip_reason(form)
+    if reason:
+        return "not_applied", reason
+    if form["plan"] and not answer_yes(driver, form["plan"]):
+        return "not_applied", "не удалось отметить ответы «Да» в тесте"
+    if form["letter"]:
+        fill(form["letter"], cover_letter)
+    time.sleep(random.uniform(1.0, 2.0))
+
+    submit = (visible(driver, By.CSS_SELECTOR, '[data-qa="vacancy-response-submit-popup"], [data-qa="vacancy-response-letter-submit"]')
+              or [b for b in root.find_elements(By.CSS_SELECTOR, "button[type=submit], input[type=submit]") if b.is_displayed()]
+              or visible(driver, By.XPATH, "//button[contains(., 'Откликнуться') or contains(., 'Отправить')]"))
+    if not submit:
+        return "not_applied", "в тесте не найдена кнопка отправки"
+    click(driver, submit[0])
+    time.sleep(random.uniform(2.5, 4.0))
+    if has_captcha(driver):
+        return "captcha", ""
+    if already_applied(driver) or "vacancy_response" not in driver.current_url:
+        note = f"тест: {form['total']} ответ(ов) «Да»"
+        return "applied", note + (", с письмом" if form["letter"] else "")
+    return "not_applied", "тест не отправился (есть обязательные вопросы?)"
+
+
 def apply_one(driver, link, cover_letter):
     """Возвращает (статус, пояснение): applied / already / not_applied / captcha."""
     driver.get(link)
@@ -393,22 +490,25 @@ def apply_one(driver, link, cover_letter):
         return "captcha", ""
 
     if "vacancy_response" in driver.current_url and not already_applied(driver):
-        return "not_applied", "работодатель просит ответить на вопросы / пройти тест"
+        return apply_test_page(driver, cover_letter)
 
-    # Всплывающее окно отклика: вставляем письмо и отправляем
+    # Всплывающее окно отклика: отвечаем «Да» в тесте (если он есть), вставляем письмо и отправляем
     submit = visible(driver, By.CSS_SELECTOR, '[data-qa="vacancy-response-submit-popup"]')
     if submit:
-        areas = visible(driver, By.CSS_SELECTOR, "textarea")
-        if not areas:
+        dialog = driver.execute_script("return arguments[0].closest('[role=dialog]') || document.body;", submit[0])
+        form = analyze_form(driver, dialog)
+        if not form["letter"]:
             for t in visible(driver, By.CSS_SELECTOR, '[data-qa="vacancy-response-letter-toggle"]'):
                 click(driver, t)
                 time.sleep(1)
-            areas = visible(driver, By.CSS_SELECTOR, "textarea")
-        if len(areas) > 1 or visible(driver, By.CSS_SELECTOR, '[role="dialog"] input[type="radio"], [role="dialog"] input[type="checkbox"]'):
-            return "not_applied", "в форме отклика есть вопросы работодателя"
-        if areas:
-            areas[0].clear()
-            areas[0].send_keys(cover_letter)
+            form = analyze_form(driver, dialog)
+        reason = test_skip_reason(form)
+        if reason:
+            return "not_applied", reason
+        if form["plan"] and not answer_yes(driver, form["plan"]):
+            return "not_applied", "не удалось отметить ответы «Да» в тесте"
+        if form["letter"]:
+            fill(form["letter"], cover_letter)
             time.sleep(random.uniform(1.0, 2.0))
         click(driver, submit[0])
         time.sleep(random.uniform(2.0, 3.0))
@@ -416,10 +516,11 @@ def apply_one(driver, link, cover_letter):
             return "captcha", ""
         if visible(driver, By.CSS_SELECTOR, '[data-qa="vacancy-response-submit-popup"]'):
             return "not_applied", "форма отклика не отправилась (обязательные поля?)"
-        if areas:
-            return "applied", "с письмом"
+        test_note = f"тест: {form['total']} ответ(ов) «Да», " if form["total"] else ""
+        if form["letter"]:
+            return "applied", test_note + "с письмом"
         letter = attach_cover_letter(driver, cover_letter)
-        return "applied", f"письмо: {letter}" if letter else "без письма"
+        return "applied", test_note + (f"письмо: {letter}" if letter else "без письма")
 
     # Отклик ушёл сразу, без окна — пробуем приложить письмо
     time.sleep(1)
@@ -728,17 +829,6 @@ def play_alarm():
     return False
 
 
-def desktop_notify(text):
-    if not shutil.which("notify-send"):
-        return False
-    try:
-        r = subprocess.run(["notify-send", "-u", "critical", "-a", "HHAutoApply", text],
-                           env=system_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
-        return r.returncode == 0
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-
-
 # ==========================================================
 # 🖥️ GRAPHICAL USER INTERFACE (TKINTER)
 # ==========================================================
@@ -825,13 +915,12 @@ class AppUI:
         frame_mode.pack(fill=tk.X, pady=(0, 5))
         ttk.Label(frame_mode, text="Режим при капче:").pack(side=tk.LEFT)
         self.mode_var = tk.StringVar(value=load_mode())
-        ttk.Radiobutton(frame_mode, text="Ручной — уведомление и звук", value=MODE_MANUAL,
+        ttk.Radiobutton(frame_mode, text="Ручной — звук и пауза", value=MODE_MANUAL,
                         variable=self.mode_var, command=self.on_mode).pack(side=tk.LEFT, padx=5)
         ttk.Radiobutton(frame_mode, text="Автономный — пропускать капчи", value=MODE_AUTO,
                         variable=self.mode_var, command=self.on_mode).pack(side=tk.LEFT, padx=5)
         self.on_mode()
         self.captcha_alarm_on = False
-        self.captcha_popup = None
 
         self.btn_apply = ttk.Button(frame_apply, text="💼 Запустить автоотклики", command=self.on_apply)
         self.btn_apply.pack(fill=tk.X, pady=5)
@@ -953,11 +1042,9 @@ class AppUI:
             self.stop_captcha_alarm()
             self.update_stats()
 
-    # --- Капча: уведомление «КАПЧА» + громкий звук, повтор звука до прохождения ---
+    # --- Капча: громкий звук, повтор до прохождения ---
     def start_captcha_alarm(self):
         self.captcha_alarm_on = True
-        if not desktop_notify("КАПЧА"):
-            self.show_captcha_popup()  # нет notify-send — своё окно поверх всех
         self.captcha_beep()
 
     def captcha_beep(self):
@@ -970,26 +1057,6 @@ class AppUI:
 
     def stop_captcha_alarm(self):
         self.captcha_alarm_on = False
-        if self.captcha_popup is not None:
-            self.captcha_popup.destroy()
-            self.captcha_popup = None
-
-    def show_captcha_popup(self):
-        if self.captcha_popup is not None:
-            return
-        win = tk.Toplevel(self.root)
-        win.title("КАПЧА")
-        win.attributes("-topmost", True)
-        tk.Label(win, text="КАПЧА", font=("Arial", 48, "bold"), fg="white", bg="red",
-                 padx=40, pady=20).pack()
-        win.bind("<Button-1>", lambda e: self.stop_captcha_popup_only())
-        win.protocol("WM_DELETE_WINDOW", self.stop_captcha_popup_only)
-        self.captcha_popup = win
-
-    def stop_captcha_popup_only(self):
-        if self.captcha_popup is not None:
-            self.captcha_popup.destroy()
-            self.captcha_popup = None
 
     def on_mode(self):
         global captcha_mode
